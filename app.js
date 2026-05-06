@@ -22,11 +22,41 @@ function saveState(state) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
+function ensureProgressPill() {
+  const resetButton = document.getElementById("reset-checklist");
+  if (!resetButton) {
+    return null;
+  }
+
+  let progressPill = document.getElementById("checklist-progress");
+  if (!progressPill) {
+    progressPill = document.createElement("span");
+    progressPill.id = "checklist-progress";
+    progressPill.className = "progress-pill";
+    progressPill.setAttribute("aria-live", "polite");
+    resetButton.insertAdjacentElement("afterend", progressPill);
+  }
+
+  return progressPill;
+}
+
+function updateProgress() {
+  const progressPill = ensureProgressPill();
+  if (!progressPill) {
+    return;
+  }
+
+  const checkboxes = getCheckboxes();
+  const checked = checkboxes.filter((checkbox) => checkbox.checked).length;
+  progressPill.textContent = `סומנו ${checked} מתוך ${checkboxes.length}`;
+}
+
 function hydrateCheckboxes() {
   const state = loadState();
   getCheckboxes().forEach((checkbox) => {
     checkbox.checked = Boolean(state[checkbox.id]);
   });
+  updateProgress();
 }
 
 function bindCheckboxPersistence() {
@@ -35,6 +65,7 @@ function bindCheckboxPersistence() {
     checkbox.addEventListener("change", () => {
       state[checkbox.id] = checkbox.checked;
       saveState(state);
+      updateProgress();
     });
   });
 }
@@ -50,9 +81,120 @@ function bindResetButton() {
     getCheckboxes().forEach((checkbox) => {
       checkbox.checked = false;
     });
+    updateProgress();
   });
+}
+
+function bindActiveSectionNav() {
+  const navLinks = Array.from(document.querySelectorAll('.main-nav a[href^="#"]'));
+  if (!navLinks.length) {
+    return;
+  }
+
+  const sectionById = new Map();
+  navLinks.forEach((link) => {
+    const targetId = link.getAttribute("href")?.slice(1);
+    if (!targetId) {
+      return;
+    }
+
+    const section = document.getElementById(targetId);
+    if (section) {
+      sectionById.set(targetId, section);
+    }
+  });
+
+  if (!sectionById.size) {
+    return;
+  }
+
+  const navElement = document.querySelector(".main-nav");
+
+  const scrollToSection = (section, shouldSmooth = true) => {
+    const navHeight = navElement ? navElement.getBoundingClientRect().height : 0;
+    const topOffset = navHeight + 16;
+    const targetTop = window.scrollY + section.getBoundingClientRect().top - topOffset;
+
+    window.scrollTo({
+      top: targetTop,
+      behavior: shouldSmooth ? "smooth" : "auto",
+    });
+  };
+
+  const setActiveLink = (activeId) => {
+    navLinks.forEach((link) => {
+      const isActive = link.getAttribute("href") === `#${activeId}`;
+      if (isActive) {
+        link.setAttribute("aria-current", "page");
+      } else {
+        link.removeAttribute("aria-current");
+      }
+    });
+  };
+
+  navLinks.forEach((link) => {
+    link.addEventListener("click", (event) => {
+      const targetId = link.getAttribute("href")?.slice(1);
+      if (!targetId) {
+        return;
+      }
+
+      const section = sectionById.get(targetId);
+      if (!section) {
+        return;
+      }
+
+      event.preventDefault();
+      scrollToSection(section, true);
+      setActiveLink(targetId);
+
+      if (window.location.hash !== `#${targetId}`) {
+        window.history.pushState(null, "", `#${targetId}`);
+      }
+    });
+  });
+
+  window.addEventListener("hashchange", () => {
+    const hashId = window.location.hash.replace("#", "");
+    const section = sectionById.get(hashId);
+    if (!section) {
+      return;
+    }
+
+    setActiveLink(hashId);
+    scrollToSection(section, false);
+  });
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      const visibleEntries = entries
+        .filter((entry) => entry.isIntersecting)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+
+      if (visibleEntries.length) {
+        setActiveLink(visibleEntries[0].target.id);
+      }
+    },
+    {
+      root: null,
+      rootMargin: "-28% 0px -58% 0px",
+      threshold: [0.2, 0.35, 0.5],
+    },
+  );
+
+  sectionById.forEach((section) => observer.observe(section));
+
+  const initialHashId = window.location.hash.replace("#", "");
+  if (sectionById.has(initialHashId)) {
+    setActiveLink(initialHashId);
+    // Wait one frame so layout/sticky nav size is final.
+    requestAnimationFrame(() => scrollToSection(sectionById.get(initialHashId), false));
+  } else {
+    setActiveLink(sectionById.keys().next().value);
+  }
 }
 
 hydrateCheckboxes();
 bindCheckboxPersistence();
 bindResetButton();
+bindActiveSectionNav();
