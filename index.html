@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="he" dir="rtl">
+<html lang="he" dir="rtl" class="is-entry-locked">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -12,8 +12,90 @@
     />
     <link rel="stylesheet" href="./styles.css" />
   </head>
-  <body>
-    <header class="hero">
+  <body class="is-entry-locked">
+    <div
+      id="entry-overlay"
+      class="entry-overlay is-locked"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="entry-overlay-title"
+      aria-describedby="entry-overlay-desc"
+    >
+      <div class="entry-overlay-bg" aria-hidden="true">
+        <span class="entry-bubble entry-bubble-1"></span>
+        <span class="entry-bubble entry-bubble-2"></span>
+        <span class="entry-bubble entry-bubble-3"></span>
+        <span class="entry-bubble entry-bubble-4"></span>
+        <span class="entry-bubble entry-bubble-5"></span>
+      </div>
+      <div class="entry-card" role="document">
+        <p class="entry-eyebrow">רגע לפני שמתחילים</p>
+        <h2 id="entry-overlay-title" class="entry-title">
+          <span class="entry-title-emoji" aria-hidden="true">👏</span>
+          מחאו כפיים כדי להיכנס
+        </h2>
+        <p id="entry-overlay-desc" class="entry-desc">
+          לחצו על האזור שלמטה (או על מקש רווח / Enter) בקצב של לפחות שתי לחיצות בשנייה למשך 5 שניות רצופות.
+        </p>
+
+        <button
+          id="entry-clap-zone"
+          type="button"
+          class="entry-clap-zone"
+          aria-label="אזור מחיאת כפיים - לחצו ברצף כדי להיכנס לאתר"
+        >
+          <span class="entry-clap-emoji" aria-hidden="true">👏</span>
+          <span class="entry-clap-hint">הקליקו כאן ברצף</span>
+          <span class="entry-clap-pulse" aria-hidden="true"></span>
+          <span class="entry-clap-pulse entry-clap-pulse-2" aria-hidden="true"></span>
+        </button>
+
+        <div class="entry-meters">
+          <div class="entry-meter">
+            <div class="entry-meter-head">
+              <span class="entry-meter-label">קצב נוכחי</span>
+              <span class="entry-meter-value" id="entry-rate-value">0.0/ש'</span>
+            </div>
+            <div class="entry-meter-track" aria-hidden="true">
+              <span class="entry-meter-fill entry-rate-fill" id="entry-rate-fill"></span>
+              <span class="entry-meter-target" aria-hidden="true"></span>
+            </div>
+          </div>
+          <div class="entry-meter">
+            <div class="entry-meter-head">
+              <span class="entry-meter-label">התקדמות (5 שניות רצופות)</span>
+              <span class="entry-meter-value" id="entry-hold-value">0%</span>
+            </div>
+            <div class="entry-meter-track" aria-hidden="true">
+              <span class="entry-meter-fill entry-hold-fill" id="entry-hold-fill"></span>
+            </div>
+          </div>
+        </div>
+
+        <p class="entry-status" id="entry-status" aria-live="polite">התחילו ללחוץ ברצף 👇</p>
+
+        <div class="entry-actions">
+          <button
+            id="entry-skip-btn"
+            type="button"
+            class="entry-skip-btn"
+            hidden
+          >
+            דלג והיכנס לאתר
+          </button>
+        </div>
+
+        <div class="entry-success" id="entry-success" aria-hidden="true">
+          <span class="entry-success-emoji">🎉</span>
+          <p class="entry-success-text">כל הכבוד! פותחים את האתר...</p>
+        </div>
+      </div>
+    </div>
+
+    <canvas id="confetti-canvas" class="confetti-canvas" aria-hidden="true"></canvas>
+
+    <div id="site-content" class="site-content">
+      <header class="hero">
       <p class="eyebrow">אירוע חוף עם לינה</p>
       <h1>ערב בים עם החברים</h1>
       <p>הכל במקום אחד: ציוד אישי, חלוקת ציוד, קניות ומידע חיוני.</p>
@@ -191,6 +273,7 @@
     <footer class="footer">
       <p>בנינו את הדף כדי לעשות סדר ולהתחיל את הווייב עוד לפני שמגיעים לחוף.</p>
     </footer>
+    </div>
 
     <script src="./app-config.js"></script>
     <script>

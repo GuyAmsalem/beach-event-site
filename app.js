@@ -1,6 +1,15 @@
 const STORAGE_KEY = "beach-event-checklist-v1";
 const CUSTOM_ITEMS_KEY = "beach-event-custom-items-v1";
 const DEFAULT_EVENT_ID = "beach-event-2026-shared";
+const ENTRY_GATE_PASSED_KEY = "beach-event-entry-passed-v1";
+
+const ENTRY_GATE = {
+  TARGET_CPS: 2,
+  HOLD_MS: 5000,
+  SKIP_DELAY_MS: 2500,
+  RATE_WINDOW_MS: 1000,
+  RATE_FILL_MAX: 4,
+};
 
 const appConfig = window.__APP_CONFIG__ ?? {};
 const SUPABASE_URL = String(appConfig.supabaseUrl ?? "").trim();
@@ -868,7 +877,428 @@ function bindActiveSectionNav() {
   }
 }
 
+function startConfettiBurst({ durationMs = 2500 } = {}) {
+  const canvas = document.getElementById("confetti-canvas");
+  if (!canvas) {
+    return;
+  }
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return;
+  }
+
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const sizeCanvas = () => {
+    canvas.width = Math.floor(window.innerWidth * dpr);
+    canvas.height = Math.floor(window.innerHeight * dpr);
+    canvas.style.width = `${window.innerWidth}px`;
+    canvas.style.height = `${window.innerHeight}px`;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  };
+  sizeCanvas();
+  canvas.classList.add("is-active");
+
+  const colors = ["#ff7c62", "#ffcf85", "#26b4c8", "#0086b8", "#56d99e", "#fff8ec", "#ffd391", "#1ec587"];
+  const pieces = [];
+  const totalPieces = 160;
+  const cannonY = window.innerHeight * 0.55;
+  const leftCannonX = window.innerWidth * 0.18;
+  const rightCannonX = window.innerWidth * 0.82;
+
+  for (let i = 0; i < totalPieces; i += 1) {
+    const fromLeft = i % 2 === 0;
+    const originX = fromLeft ? leftCannonX : rightCannonX;
+    const baseAngle = fromLeft ? -Math.PI * 0.32 : Math.PI * 1.32;
+    const spread = (Math.random() - 0.5) * Math.PI * 0.4;
+    const angle = baseAngle + spread;
+    const speed = 7 + Math.random() * 7;
+
+    pieces.push({
+      x: originX,
+      y: cannonY,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      size: 6 + Math.random() * 6,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rotation: Math.random() * Math.PI * 2,
+      rotationSpeed: (Math.random() - 0.5) * 0.32,
+      shape: Math.random() < 0.4 ? "rect" : "ribbon",
+      drag: 0.985 + Math.random() * 0.01,
+    });
+  }
+
+  const gravity = 0.28;
+  const startTime = performance.now();
+  let rafId = 0;
+
+  const handleResize = () => sizeCanvas();
+  window.addEventListener("resize", handleResize);
+
+  const cleanup = () => {
+    window.removeEventListener("resize", handleResize);
+    canvas.classList.remove("is-active");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  };
+
+  const tick = (now) => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const elapsed = now - startTime;
+    let alive = 0;
+
+    pieces.forEach((p) => {
+      p.vy += gravity;
+      p.vx *= p.drag;
+      p.vy *= p.drag;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.rotation += p.rotationSpeed;
+
+      if (p.y - p.size > window.innerHeight + 40) {
+        return;
+      }
+      alive += 1;
+
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rotation);
+      ctx.fillStyle = p.color;
+      if (p.shape === "rect") {
+        ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+      } else {
+        ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+      }
+      ctx.restore();
+    });
+
+    if (alive === 0 && elapsed > durationMs) {
+      cleanup();
+      return;
+    }
+
+    rafId = requestAnimationFrame(tick);
+  };
+
+  rafId = requestAnimationFrame(tick);
+
+  setTimeout(() => {
+    if (alivePiecesAllOffscreen(pieces)) {
+      cancelAnimationFrame(rafId);
+      cleanup();
+    }
+  }, durationMs + 4000);
+}
+
+function alivePiecesAllOffscreen(pieces) {
+  return pieces.every((p) => p.y - p.size > window.innerHeight + 40);
+}
+
+const EntryGate = {
+  overlayEl: null,
+  cardEl: null,
+  clapZoneEl: null,
+  rateFillEl: null,
+  rateValueEl: null,
+  holdFillEl: null,
+  holdValueEl: null,
+  statusEl: null,
+  skipBtnEl: null,
+  successEl: null,
+  contentEl: null,
+  popTimeoutId: 0,
+  rafId: 0,
+  skipTimeoutId: 0,
+  clapTimestamps: [],
+  onTargetSince: null,
+  isActive: false,
+  unlocking: false,
+  lastStatusKey: "",
+  reducedMotion: false,
+  keydownHandler: null,
+  pointerHandler: null,
+
+  start() {
+    this.overlayEl = document.getElementById("entry-overlay");
+    this.contentEl = document.getElementById("site-content");
+    if (!this.overlayEl) {
+      return;
+    }
+
+    if (this.alreadyPassed()) {
+      this.bypassImmediately();
+      return;
+    }
+
+    this.cardEl = this.overlayEl.querySelector(".entry-card");
+    this.clapZoneEl = document.getElementById("entry-clap-zone");
+    this.rateFillEl = document.getElementById("entry-rate-fill");
+    this.rateValueEl = document.getElementById("entry-rate-value");
+    this.holdFillEl = document.getElementById("entry-hold-fill");
+    this.holdValueEl = document.getElementById("entry-hold-value");
+    this.statusEl = document.getElementById("entry-status");
+    this.skipBtnEl = document.getElementById("entry-skip-btn");
+    this.successEl = document.getElementById("entry-success");
+
+    this.reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+
+    document.documentElement.classList.add("is-entry-locked");
+    document.body.classList.add("is-entry-locked");
+    if (this.contentEl && "inert" in HTMLElement.prototype) {
+      this.contentEl.setAttribute("inert", "");
+    }
+
+    this.bindEvents();
+    this.scheduleSkipReveal();
+    this.startTicking();
+    this.isActive = true;
+
+    setTimeout(() => {
+      this.clapZoneEl?.focus({ preventScroll: true });
+    }, 60);
+  },
+
+  alreadyPassed() {
+    try {
+      return sessionStorage.getItem(ENTRY_GATE_PASSED_KEY) === "1";
+    } catch {
+      return false;
+    }
+  },
+
+  rememberPassed() {
+    try {
+      sessionStorage.setItem(ENTRY_GATE_PASSED_KEY, "1");
+    } catch {
+      // ignore storage errors silently
+    }
+  },
+
+  bypassImmediately() {
+    this.overlayEl?.setAttribute("hidden", "");
+    document.documentElement.classList.remove("is-entry-locked");
+    document.body.classList.remove("is-entry-locked");
+    if (this.contentEl) {
+      this.contentEl.removeAttribute("inert");
+    }
+  },
+
+  bindEvents() {
+    if (!this.clapZoneEl) {
+      return;
+    }
+
+    this.pointerHandler = (event) => {
+      event.preventDefault();
+      this.recordClap();
+    };
+    this.clapZoneEl.addEventListener("pointerdown", this.pointerHandler);
+
+    this.clapZoneEl.addEventListener("click", (event) => {
+      event.preventDefault();
+    });
+
+    this.keydownHandler = (event) => {
+      if (!this.isActive) {
+        return;
+      }
+      if (event.target instanceof HTMLElement && event.target.id === "entry-skip-btn") {
+        return;
+      }
+      if (event.key === " " || event.key === "Spacebar" || event.key === "Enter") {
+        if (event.repeat) {
+          return;
+        }
+        event.preventDefault();
+        this.recordClap();
+      }
+    };
+    document.addEventListener("keydown", this.keydownHandler);
+
+    if (this.skipBtnEl) {
+      this.skipBtnEl.addEventListener("click", () => this.unlock({ celebrate: false }));
+    }
+  },
+
+  scheduleSkipReveal() {
+    if (!this.skipBtnEl) {
+      return;
+    }
+    this.skipTimeoutId = window.setTimeout(() => {
+      if (!this.skipBtnEl) {
+        return;
+      }
+      this.skipBtnEl.hidden = false;
+    }, ENTRY_GATE.SKIP_DELAY_MS);
+  },
+
+  recordClap() {
+    if (!this.isActive || this.unlocking) {
+      return;
+    }
+    const now = performance.now();
+    this.clapTimestamps.push(now);
+
+    if (this.clapZoneEl) {
+      this.clapZoneEl.classList.add("is-popping");
+      window.clearTimeout(this.popTimeoutId);
+      this.popTimeoutId = window.setTimeout(() => {
+        this.clapZoneEl?.classList.remove("is-popping");
+      }, 220);
+    }
+  },
+
+  startTicking() {
+    const tick = (now) => {
+      if (!this.isActive) {
+        return;
+      }
+      this.pruneTimestamps(now);
+      const rate = this.computeCurrentRate();
+      const meetsTarget = rate >= ENTRY_GATE.TARGET_CPS;
+
+      if (meetsTarget) {
+        if (this.onTargetSince === null) {
+          this.onTargetSince = now;
+        }
+      } else {
+        this.onTargetSince = null;
+      }
+
+      const heldMs = this.onTargetSince === null ? 0 : Math.max(0, now - this.onTargetSince);
+      const heldPercent = Math.min(100, (heldMs / ENTRY_GATE.HOLD_MS) * 100);
+
+      this.renderMeters(rate, heldPercent, meetsTarget);
+      this.updateStatus(rate, heldMs, meetsTarget);
+
+      if (heldMs >= ENTRY_GATE.HOLD_MS) {
+        this.succeed();
+        return;
+      }
+
+      this.rafId = requestAnimationFrame(tick);
+    };
+    this.rafId = requestAnimationFrame(tick);
+  },
+
+  pruneTimestamps(now) {
+    const cutoff = now - ENTRY_GATE.RATE_WINDOW_MS;
+    while (this.clapTimestamps.length && this.clapTimestamps[0] < cutoff) {
+      this.clapTimestamps.shift();
+    }
+  },
+
+  computeCurrentRate() {
+    return this.clapTimestamps.length;
+  },
+
+  renderMeters(rate, heldPercent, meetsTarget) {
+    if (this.rateValueEl) {
+      this.rateValueEl.textContent = `${rate}/ש'`;
+    }
+    if (this.rateFillEl) {
+      const ratePercent = Math.min(100, (rate / ENTRY_GATE.RATE_FILL_MAX) * 100);
+      this.rateFillEl.style.width = `${ratePercent}%`;
+      this.rateFillEl.classList.toggle("is-on-target", meetsTarget);
+    }
+    if (this.holdValueEl) {
+      this.holdValueEl.textContent = `${Math.round(heldPercent)}%`;
+    }
+    if (this.holdFillEl) {
+      this.holdFillEl.style.width = `${heldPercent}%`;
+    }
+  },
+
+  updateStatus(rate, heldMs, meetsTarget) {
+    if (!this.statusEl) {
+      return;
+    }
+    let key = "start";
+    let text = "התחילו ללחוץ ברצף 👇";
+
+    if (rate > 0 && !meetsTarget) {
+      key = "speedup";
+      text = "כמעט שם, האיצו קצת את הקצב 🤏";
+    }
+    if (meetsTarget && heldMs > 0 && heldMs < 2000) {
+      key = "good";
+      text = "קצב מעולה, תמשיכו ככה 👏";
+    }
+    if (meetsTarget && heldMs >= 2000 && heldMs < 4000) {
+      key = "great";
+      text = "אהבנו! עוד רגע נכנסים 🎯";
+    }
+    if (meetsTarget && heldMs >= 4000) {
+      key = "almost";
+      text = "כמעט פותחים... אל תפסיקו! 🔥";
+    }
+
+    if (key !== this.lastStatusKey) {
+      this.lastStatusKey = key;
+      this.statusEl.textContent = text;
+    }
+  },
+
+  succeed() {
+    if (this.unlocking) {
+      return;
+    }
+    this.unlocking = true;
+    this.isActive = false;
+    cancelAnimationFrame(this.rafId);
+
+    if (this.successEl) {
+      this.successEl.classList.add("is-visible");
+      this.successEl.setAttribute("aria-hidden", "false");
+    }
+    if (this.statusEl) {
+      this.statusEl.textContent = "כל הכבוד! פותחים את האתר ✨";
+    }
+
+    if (!this.reducedMotion) {
+      startConfettiBurst({ durationMs: 2400 });
+    }
+
+    const closeDelay = this.reducedMotion ? 600 : 1100;
+    window.setTimeout(() => this.unlock({ celebrate: false }), closeDelay);
+  },
+
+  unlock({ celebrate = false } = {}) {
+    cancelAnimationFrame(this.rafId);
+    window.clearTimeout(this.skipTimeoutId);
+    this.isActive = false;
+
+    if (celebrate && !this.reducedMotion) {
+      startConfettiBurst({ durationMs: 2200 });
+    }
+
+    if (this.keydownHandler) {
+      document.removeEventListener("keydown", this.keydownHandler);
+      this.keydownHandler = null;
+    }
+
+    this.rememberPassed();
+
+    if (this.overlayEl) {
+      this.overlayEl.classList.add("is-leaving");
+    }
+
+    document.documentElement.classList.remove("is-entry-locked");
+    document.body.classList.remove("is-entry-locked");
+    if (this.contentEl) {
+      this.contentEl.removeAttribute("inert");
+    }
+
+    window.setTimeout(() => {
+      if (this.overlayEl) {
+        this.overlayEl.setAttribute("hidden", "");
+        this.overlayEl.classList.remove("is-leaving");
+      }
+    }, 460);
+  },
+};
+
 async function init() {
+  EntryGate.start();
   ensureArticleKeys();
   ensureArticleProgressBars();
   ensureArticleLayout();
