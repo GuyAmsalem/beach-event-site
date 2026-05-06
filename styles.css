@@ -7,8 +7,8 @@
   --lagoon: #28adc8;
   --coral: #ff7c62;
   --sand: #f6ecdb;
-  --surface: rgb(255 255 255 / 0.86);
-  --surface-2: rgb(255 255 255 / 0.94);
+  --surface: rgb(255 255 255 / 0.24);
+  --surface-2: rgb(255 255 255 / 0.34);
   --line: rgb(12 89 126 / 0.15);
   --line-strong: rgb(4 109 147 / 0.28);
   --shadow-sm: 0 12px 26px rgb(5 48 73 / 0.09);
@@ -39,8 +39,8 @@ body::before {
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(circle at 16% 0%, rgb(255 255 255 / 0.26) 0, transparent 33%),
-    linear-gradient(170deg, rgb(255 255 255 / 0.22), rgb(255 246 229 / 0.2) 56%, rgb(255 255 255 / 0.1));
+    radial-gradient(circle at 16% 0%, rgb(255 255 255 / 0.16) 0, transparent 33%),
+    linear-gradient(170deg, rgb(255 255 255 / 0.14), rgb(255 246 229 / 0.12) 56%, rgb(255 255 255 / 0.06));
   z-index: -1;
 }
 
@@ -85,8 +85,8 @@ h1 {
 }
 
 .hero-meta span {
-  background: rgb(255 255 255 / 0.24);
-  border: 1px solid rgb(255 255 255 / 0.42);
+  background: rgb(255 255 255 / 0.16);
+  border: 1px solid rgb(255 255 255 / 0.32);
   border-radius: 999px;
   padding: 0.34rem 0.8rem;
 }
@@ -107,15 +107,16 @@ h1 {
   gap: 0.55rem;
   padding: 0.82rem 1rem;
   overflow-x: auto;
-  background: rgb(255 255 255 / 0.66);
-  border-block: 1px solid rgb(255 255 255 / 0.45);
+  background: rgb(255 255 255 / 0.24);
+  border-block: 1px solid rgb(255 255 255 / 0.24);
   backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 .main-nav a {
   text-decoration: none;
   color: #124b6c;
-  background: rgb(255 255 255 / 0.94);
+  background: rgb(255 255 255 / 0.34);
   border: 1px solid rgb(14 123 154 / 0.16);
   padding: 0.48rem 0.92rem;
   border-radius: 999px;
@@ -129,7 +130,7 @@ h1 {
 .main-nav a:focus-visible {
   transform: translateY(-1px) scale(1.01);
   border-color: rgb(255 124 98 / 0.72);
-  background: #fff;
+  background: rgb(255 255 255 / 0.72);
   box-shadow: 0 8px 18px rgb(255 124 98 / 0.2);
   outline: none;
 }
@@ -154,11 +155,12 @@ h1 {
 
 .card {
   background: var(--surface);
-  border: 1px solid rgb(255 255 255 / 0.72);
+  border: 1px solid rgb(255 255 255 / 0.34);
   border-radius: var(--radius-lg);
   padding: 1.15rem;
   box-shadow: var(--shadow-md);
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
 }
 
 .card h2 {
@@ -169,6 +171,62 @@ h1 {
   letter-spacing: 0.01em;
 }
 
+.article-progress {
+  margin: 0 0 0.95rem;
+  padding: 0.48rem 0.64rem 0.56rem;
+  border: 1px solid rgb(255 255 255 / 0.22);
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.12);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.article-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.35rem;
+}
+
+.article-progress-label {
+  color: #0b4a6c;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.article-progress-text {
+  color: #0a3f5d;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.article-progress-track {
+  width: 100%;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.24);
+  overflow: hidden;
+}
+
+.article-progress-fill {
+  display: block;
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #26b4c8, #0f82b5);
+  box-shadow: 0 4px 10px rgb(15 130 181 / 0.35);
+  transition: width 220ms ease;
+}
+
+.article-progress-feedback {
+  margin: 0.42rem 0 0;
+  min-height: 1.05rem;
+  color: #0a5a7f;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
 .checklist-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(245px, 1fr));
@@ -177,10 +235,12 @@ h1 {
 
 .checklist-grid article {
   background: var(--surface-2);
-  border: 1px solid var(--line);
+  border: 1px solid rgb(12 89 126 / 0.14);
   border-radius: var(--radius-md);
   padding: 0.85rem 0.82rem;
   box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .checklist-grid h3 {
@@ -207,12 +267,12 @@ label {
   padding: 0.42rem 0.52rem;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  background: rgb(246 252 255 / 0.72);
+  background: rgb(246 252 255 / 0.1);
   transition: background-color 140ms ease, border-color 140ms ease, transform 140ms ease;
 }
 
 label:hover {
-  background: #fff;
+  background: rgb(255 255 255 / 0.24);
   border-color: rgb(39 156 192 / 0.28);
   transform: translateY(-1px);
 }
@@ -227,7 +287,7 @@ input[type="checkbox"] {
 
 label:has(input[type="checkbox"]:checked) {
   color: rgb(8 50 78 / 0.82);
-  background: linear-gradient(90deg, rgb(42 175 201 / 0.14), rgb(255 255 255 / 0.97));
+  background: linear-gradient(90deg, rgb(42 175 201 / 0.22), rgb(255 255 255 / 0.2));
   border-color: var(--line-strong);
 }
 
@@ -271,21 +331,6 @@ input[type="checkbox"]:focus-visible {
   transform: translateY(0);
 }
 
-.progress-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.32rem;
-  margin-inline-start: 0.52rem;
-  margin-top: 0.5rem;
-  padding: 0.24rem 0.7rem;
-  border-radius: 999px;
-  background: linear-gradient(120deg, rgb(6 106 151 / 0.95), rgb(34 174 202 / 0.9));
-  color: #f5fdff;
-  font-size: 0.88rem;
-  font-weight: 600;
-  box-shadow: 0 8px 16px rgb(7 95 137 / 0.2);
-}
-
 .footer {
   text-align: center;
   padding: 1.3rem;
@@ -296,6 +341,17 @@ input[type="checkbox"]:focus-visible {
 @media (max-width: 760px) {
   body {
     background-attachment: scroll;
+    background:
+      linear-gradient(180deg, rgb(8 50 78 / 0.22), rgb(255 248 235 / 0.08) 52%, rgb(255 255 255 / 0.04)),
+      url("https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1400&q=80")
+        68% center / cover no-repeat;
+    min-height: 100dvh;
+  }
+
+  body::before {
+    background:
+      radial-gradient(circle at 50% 2%, rgb(255 255 255 / 0.1) 0, transparent 34%),
+      linear-gradient(180deg, rgb(6 46 72 / 0.12), rgb(255 247 233 / 0.08) 58%, rgb(255 255 255 / 0.04));
   }
 
   .main-nav {
@@ -343,9 +399,6 @@ input[type="checkbox"]:focus-visible {
     margin-bottom: 0.45rem;
   }
 
-  .progress-pill {
-    margin-inline-start: 0;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

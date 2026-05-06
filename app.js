@@ -22,33 +22,81 @@ function saveState(state) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
-function ensureProgressPill() {
-  const resetButton = document.getElementById("reset-checklist");
-  if (!resetButton) {
-    return null;
-  }
+function getChecklistArticles() {
+  return Array.from(document.querySelectorAll(".checklist-grid article")).filter(
+    (article) => article.querySelectorAll('input[type="checkbox"][id]').length > 0,
+  );
+}
 
-  let progressPill = document.getElementById("checklist-progress");
-  if (!progressPill) {
-    progressPill = document.createElement("span");
-    progressPill.id = "checklist-progress";
-    progressPill.className = "progress-pill";
-    progressPill.setAttribute("aria-live", "polite");
-    resetButton.insertAdjacentElement("afterend", progressPill);
-  }
+function ensureArticleProgressBars() {
+  getChecklistArticles().forEach((article) => {
+    let progressWrap = article.querySelector(".article-progress");
+    if (!progressWrap) {
+      progressWrap = document.createElement("div");
+      progressWrap.className = "article-progress";
+      progressWrap.innerHTML = `
+        <div class="article-progress-head">
+          <span class="article-progress-label">התקדמות</span>
+          <span class="article-progress-text">0%</span>
+        </div>
+        <div class="article-progress-track" aria-hidden="true">
+          <span class="article-progress-fill"></span>
+        </div>
+        <p class="article-progress-feedback" aria-live="polite"></p>
+      `;
 
-  return progressPill;
+      const articleTitle = article.querySelector("h3");
+      if (articleTitle) {
+        articleTitle.insertAdjacentElement("afterend", progressWrap);
+      } else {
+        article.prepend(progressWrap);
+      }
+    }
+  });
+}
+
+function updateArticleProgressBars() {
+  getChecklistArticles().forEach((article) => {
+    const articleCheckboxes = Array.from(article.querySelectorAll('input[type="checkbox"][id]'));
+    if (!articleCheckboxes.length) {
+      return;
+    }
+
+    const checkedCount = articleCheckboxes.filter((checkbox) => checkbox.checked).length;
+    const totalCount = articleCheckboxes.length;
+    const percent = Math.round((checkedCount / totalCount) * 100);
+
+    const progressWrap = article.querySelector(".article-progress");
+    if (!progressWrap) {
+      return;
+    }
+
+    const progressText = progressWrap.querySelector(".article-progress-text");
+    const progressFill = progressWrap.querySelector(".article-progress-fill");
+    const progressFeedback = progressWrap.querySelector(".article-progress-feedback");
+
+    if (progressText) {
+      progressText.textContent = `${checkedCount}/${totalCount} (${percent}%)`;
+    }
+    if (progressFill) {
+      progressFill.style.width = `${percent}%`;
+    }
+    if (progressFeedback) {
+      if (percent === 100) {
+        progressFeedback.textContent = "מעולים! הרשימה הושלמה.";
+      } else if (percent >= 70) {
+        progressFeedback.textContent = "עוד קצת ואתם שם.";
+      } else if (percent >= 35) {
+        progressFeedback.textContent = "קצב מעולה, ממשיכים.";
+      } else {
+        progressFeedback.textContent = "";
+      }
+    }
+  });
 }
 
 function updateProgress() {
-  const progressPill = ensureProgressPill();
-  if (!progressPill) {
-    return;
-  }
-
-  const checkboxes = getCheckboxes();
-  const checked = checkboxes.filter((checkbox) => checkbox.checked).length;
-  progressPill.textContent = `סומנו ${checked} מתוך ${checkboxes.length}`;
+  updateArticleProgressBars();
 }
 
 function hydrateCheckboxes() {
@@ -195,6 +243,8 @@ function bindActiveSectionNav() {
 }
 
 hydrateCheckboxes();
+ensureArticleProgressBars();
+updateArticleProgressBars();
 bindCheckboxPersistence();
 bindResetButton();
 bindActiveSectionNav();
