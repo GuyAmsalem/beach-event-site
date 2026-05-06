@@ -1,5 +1,6 @@
 const STORAGE_KEY = "beach-event-checklist-v1";
 const CUSTOM_ITEMS_KEY = "beach-event-custom-items-v1";
+const BUILTIN_ITEM_OVERRIDES_KEY = "beach-event-built-in-item-overrides-v1";
 const DEFAULT_EVENT_ID = "beach-event-2026-shared";
 const ENTRY_GATE_PASSED_KEY = "beach-event-entry-passed-v1";
 
@@ -18,6 +19,7 @@ const EVENT_ID = String(appConfig.eventId ?? DEFAULT_EVENT_ID).trim() || DEFAULT
 
 let checkboxState = {};
 let customItemsByArticle = {};
+let builtInItemOverrides = {};
 let syncEngine = null;
 const boundCheckboxes = new WeakSet();
 const MAX_CUSTOM_ITEM_LENGTH = 80;
@@ -66,6 +68,24 @@ function saveCustomItems(itemsByArticle) {
   localStorage.setItem(CUSTOM_ITEMS_KEY, JSON.stringify(itemsByArticle));
 }
 
+function loadBuiltInOverrides() {
+  const raw = localStorage.getItem(BUILTIN_ITEM_OVERRIDES_KEY);
+  if (!raw) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveBuiltInOverrides(overrides) {
+  localStorage.setItem(BUILTIN_ITEM_OVERRIDES_KEY, JSON.stringify(overrides));
+}
+
 function safeIdPart(value) {
   return value.replace(/[^a-zA-Z0-9_-]/g, "-");
 }
@@ -103,6 +123,28 @@ function normalizeCustomItems(value) {
   return normalized;
 }
 
+function normalizeBuiltInOverrides(value) {
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+  const normalized = {};
+  Object.entries(value).forEach(([checkboxId, config]) => {
+    if (!config || typeof config !== "object") {
+      return;
+    }
+    const text = String(config.text ?? "").trim();
+    const deleted = Boolean(config.deleted);
+    if (!text && !deleted) {
+      return;
+    }
+    normalized[checkboxId] = {
+      text,
+      deleted,
+    };
+  });
+  return normalized;
+}
+
 function snapshotHash(checkboxes, customItems) {
   return JSON.stringify({
     checkbox_state: checkboxes,
@@ -113,6 +155,7 @@ function snapshotHash(checkboxes, customItems) {
 function persistLocalState() {
   saveState(checkboxState);
   saveCustomItems(customItemsByArticle);
+  saveBuiltInOverrides(builtInItemOverrides);
 }
 
 function pushStateUpdate({ sync = true } = {}) {
@@ -184,11 +227,29 @@ function toggleCheckboxState(checkboxId, checked) {
 }
 
 function closeAllItemMenus(exceptRow = null) {
-  document.querySelectorAll(".custom-item-row.is-menu-open").forEach((row) => {
+  document.querySelectorAll(".checklist-item-row.is-menu-open").forEach((row) => {
     if (row !== exceptRow) {
       row.classList.remove("is-menu-open");
     }
   });
+}
+
+function createItemActionsMarkup() {
+  return `
+    <button type="button" class="item-action-btn edit" data-action="edit" aria-label="עריכה" title="עריכה">
+      <span aria-hidden="true">✏️</span>
+    </button>
+    <button type="button" class="item-action-btn delete" data-action="delete" aria-label="מחיקה" title="מחיקה">
+      <span aria-hidden="true">🗑️</span>
+    </button>
+  `;
+}
+
+function createItemMenuMarkup() {
+  return `
+    <button type="button" class="item-menu-btn" data-action="edit">עריכה</button>
+    <button type="button" class="item-menu-btn danger" data-action="delete">מחיקה</button>
+  `;
 }
 
 function createCustomItemRow(article, articleKey, item) {
@@ -214,10 +275,7 @@ function createCustomItemRow(article, articleKey, item) {
 
   const actions = document.createElement("div");
   actions.className = "item-actions";
-  actions.innerHTML = `
-    <button type="button" class="item-action-btn edit" data-action="edit">עריכה</button>
-    <button type="button" class="item-action-btn delete" data-action="delete">מחיקה</button>
-  `;
+  actions.innerHTML = createItemActionsMarkup();
 
   const menuTrigger = document.createElement("button");
   menuTrigger.type = "button";
@@ -227,10 +285,7 @@ function createCustomItemRow(article, articleKey, item) {
 
   const menu = document.createElement("div");
   menu.className = "item-menu";
-  menu.innerHTML = `
-    <button type="button" class="item-menu-btn" data-action="edit">עריכה</button>
-    <button type="button" class="item-menu-btn danger" data-action="delete">מחיקה</button>
-  `;
+  menu.innerHTML = createItemMenuMarkup();
 
   row.append(mainLabel, actions, menuTrigger, menu);
   const articleBody = getArticleBody(article);
@@ -342,6 +397,75 @@ function clearCustomItemsFromDom() {
   document.querySelectorAll(".custom-item-row").forEach((node) => node.remove());
 }
 
+function ensureBuiltInItemRows() {
+  getChecklistArticles().forEach((article) => {
+    const articleBody = getArticleBody(article);
+    if (!articleBody) {
+      return;
+    }
+
+    const standaloneLabels = Array.from(articleBody.querySelectorAll(":scope > label"));
+    standaloneLabels.forEach((label) => {
+      const checkbox = label.querySelector('input[type="checkbox"][id]');
+      if (!checkbox) {
+        return;
+      }
+
+      const checkboxId = checkbox.id;
+      const override = builtInItemOverrides[checkboxId];
+      if (override?.deleted) {
+        label.remove();
+        delete checkboxState[checkboxId];
+        return;
+      }
+
+      let textNode = label.querySelector(".item-text");
+      if (!textNode) {
+        const inlineText = Array.from(label.childNodes)
+          .filter((node) => node.nodeType === Node.TEXT_NODE)
+          .map((node) => node.textContent ?? "")
+          .join(" ")
+          .trim();
+        textNode = document.createElement("span");
+        textNode.className = "item-text";
+        textNode.textContent = inlineText;
+        Array.from(label.childNodes).forEach((node) => {
+          if (node !== checkbox) {
+            node.remove();
+          }
+        });
+        label.append(textNode);
+      }
+
+      if (override?.text) {
+        textNode.textContent = override.text;
+      }
+
+      const row = document.createElement("div");
+      row.className = "checklist-item-row built-in-item-row";
+      row.dataset.checkboxId = checkboxId;
+      label.classList.add("checklist-item-main");
+
+      const actions = document.createElement("div");
+      actions.className = "item-actions";
+      actions.innerHTML = createItemActionsMarkup();
+
+      const menuTrigger = document.createElement("button");
+      menuTrigger.type = "button";
+      menuTrigger.className = "item-menu-trigger";
+      menuTrigger.setAttribute("aria-label", "פתיחת תפריט פעולות");
+      menuTrigger.textContent = "⋮";
+
+      const menu = document.createElement("div");
+      menu.className = "item-menu";
+      menu.innerHTML = createItemMenuMarkup();
+
+      row.append(label, actions, menuTrigger, menu);
+      articleBody.append(row);
+    });
+  });
+}
+
 function restoreCustomItemsFromState() {
   clearCustomItemsFromDom();
   getChecklistArticles().forEach((article) => {
@@ -357,7 +481,7 @@ function restoreCustomItemsFromState() {
   });
 }
 
-function beginInlineEdit(row, articleKey, itemId) {
+function beginInlineEdit(row, onSave) {
   if (!row || row.classList.contains("is-editing")) {
     return;
   }
@@ -385,11 +509,7 @@ function beginInlineEdit(row, articleKey, itemId) {
     row.classList.remove("is-editing");
     const nextValue = input.value.trim();
     if (shouldSave && nextValue && nextValue !== originalText) {
-      if (renameCustomItem(articleKey, itemId, nextValue)) {
-        restoreCustomItemsFromState();
-        bindCheckboxPersistence();
-        applyCheckboxStateToDom();
-      }
+      onSave(nextValue);
     }
     updateProgress();
     closeAllItemMenus();
@@ -426,7 +546,15 @@ function handleCustomItemAction(row, action) {
   }
 
   if (action === "edit") {
-    beginInlineEdit(row, articleKey, itemId);
+    beginInlineEdit(row, (nextValue) => {
+      if (renameCustomItem(articleKey, itemId, nextValue)) {
+        restoreCustomItemsFromState();
+        ensureBuiltInItemRows();
+        bindItemActions();
+        bindCheckboxPersistence();
+        applyCheckboxStateToDom();
+      }
+    });
     return;
   }
 
@@ -438,21 +566,53 @@ function handleCustomItemAction(row, action) {
   }
 }
 
-function bindCustomItemActions() {
+function handleBuiltInItemAction(row, action) {
+  if (!row) {
+    return;
+  }
+  const checkboxId = row.dataset.checkboxId;
+  if (!checkboxId) {
+    return;
+  }
+
+  if (action === "edit") {
+    beginInlineEdit(row, (nextValue) => {
+      const current = builtInItemOverrides[checkboxId] ?? { deleted: false };
+      builtInItemOverrides[checkboxId] = {
+        text: nextValue,
+        deleted: Boolean(current.deleted),
+      };
+      pushStateUpdate({ sync: false });
+    });
+    return;
+  }
+
+  if (action === "delete") {
+    builtInItemOverrides[checkboxId] = {
+      text: "",
+      deleted: true,
+    };
+    delete checkboxState[checkboxId];
+    row.remove();
+    pushStateUpdate();
+  }
+}
+
+function bindItemActions() {
   getChecklistArticles().forEach((article) => {
     const body = getArticleBody(article);
-    if (!body || body.dataset.customActionsBound === "true") {
+    if (!body || body.dataset.itemActionsBound === "true") {
       return;
     }
 
-    body.dataset.customActionsBound = "true";
+    body.dataset.itemActionsBound = "true";
     body.addEventListener("click", (event) => {
       const trigger = event.target.closest("[data-action], .item-menu-trigger");
       if (!trigger) {
         return;
       }
 
-      const row = trigger.closest(".custom-item-row");
+      const row = trigger.closest(".checklist-item-row");
       if (!row) {
         return;
       }
@@ -470,7 +630,11 @@ function bindCustomItemActions() {
         return;
       }
       event.preventDefault();
-      handleCustomItemAction(row, action);
+      if (row.classList.contains("custom-item-row")) {
+        handleCustomItemAction(row, action);
+      } else {
+        handleBuiltInItemAction(row, action);
+      }
     });
   });
 }
@@ -487,7 +651,7 @@ function bindGlobalMenuDismiss() {
       closeAllItemMenus();
       return;
     }
-    if (!target.closest(".custom-item-row")) {
+    if (!target.closest(".checklist-item-row")) {
       closeAllItemMenus();
     }
   });
@@ -522,7 +686,7 @@ function bindItemComposer() {
       }
 
       restoreCustomItemsFromState();
-      bindCustomItemActions();
+      bindItemActions();
       bindCheckboxPersistence();
       applyCheckboxStateToDom();
 
@@ -615,7 +779,7 @@ function applySnapshot(snapshot) {
 
   persistLocalState();
   restoreCustomItemsFromState();
-  bindCustomItemActions();
+  bindItemActions();
   bindCheckboxPersistence();
   applyCheckboxStateToDom();
   updateProgress();
@@ -751,21 +915,6 @@ async function createSupabaseClient() {
     console.warn("Supabase client failed to load, using local storage only.", error);
     return null;
   }
-}
-
-function bindResetButton() {
-  const resetButton = document.getElementById("reset-checklist");
-  if (!resetButton) {
-    return;
-  }
-
-  resetButton.addEventListener("click", () => {
-    checkboxState = {};
-    persistLocalState();
-    applyCheckboxStateToDom();
-    updateProgress();
-    syncEngine?.schedulePush();
-  });
 }
 
 function bindActiveSectionNav() {
@@ -1302,18 +1451,20 @@ async function init() {
   ensureArticleKeys();
   ensureArticleProgressBars();
   ensureArticleLayout();
+  builtInItemOverrides = normalizeBuiltInOverrides(loadBuiltInOverrides());
+  ensureBuiltInItemRows();
   ensureItemComposer();
   ensureArticleLayout();
 
   checkboxState = normalizeCheckboxState(loadState());
   customItemsByArticle = normalizeCustomItems(loadCustomItems());
   restoreCustomItemsFromState();
-  bindCustomItemActions();
+  ensureBuiltInItemRows();
+  bindItemActions();
   bindGlobalMenuDismiss();
   applyCheckboxStateToDom();
   bindCheckboxPersistence();
   bindItemComposer();
-  bindResetButton();
   bindActiveSectionNav();
   updateProgress();
 

@@ -354,39 +354,56 @@ h1 {
 }
 
 .item-actions {
+  position: absolute;
+  inset-inline-end: 0.4rem;
+  top: 50%;
+  transform: translateY(-50%) translateX(-3px);
   display: flex;
   align-items: center;
-  gap: 0.28rem;
+  gap: 0.32rem;
+  z-index: 4;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transform: translateX(-3px);
   transition: opacity 140ms ease, transform 140ms ease, visibility 140ms ease;
 }
 
-.custom-item-row:hover .item-actions,
-.custom-item-row:focus-within .item-actions {
+.checklist-item-row:hover .item-actions,
+.checklist-item-row:focus-within .item-actions {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
-  transform: translateX(0);
+  transform: translateY(-50%) translateX(0);
 }
 
 .item-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 1.7rem;
+  block-size: 1.7rem;
+  padding: 0;
   border: 1px solid rgb(18 122 161 / 0.25);
-  background: rgb(255 255 255 / 0.86);
+  background: rgb(255 255 255 / 0.94);
   color: #0d5578;
   border-radius: 999px;
-  padding: 0.14rem 0.48rem;
   font: inherit;
-  font-size: 0.68rem;
-  font-weight: 700;
+  font-size: 0.95rem;
+  line-height: 1;
+  box-shadow: 0 4px 12px rgb(5 48 73 / 0.16);
   cursor: pointer;
+  transition: transform 140ms ease, box-shadow 140ms ease;
+}
+
+.item-action-btn:hover,
+.item-action-btn:focus-visible {
+  transform: translateY(-1px) scale(1.05);
+  box-shadow: 0 8px 18px rgb(5 48 73 / 0.22);
+  outline: none;
 }
 
 .item-action-btn.delete {
-  color: #a44343;
-  border-color: rgb(199 93 93 / 0.25);
+  border-color: rgb(199 93 93 / 0.32);
 }
 
 .item-menu-trigger {
@@ -405,7 +422,9 @@ h1 {
 .item-menu {
   display: none;
   position: absolute;
-  inset-inline-start: 0.15rem;
+  /* RTL: inline-start is right (checkbox); kebab is on inline-end (left). Anchor menu by end edge so it sits next to the dots. */
+  inset-inline-start: auto;
+  inset-inline-end: 0.15rem;
   top: calc(100% - 0.2rem);
   z-index: 7;
   min-width: 6.1rem;
@@ -416,7 +435,7 @@ h1 {
   box-shadow: 0 12px 24px rgb(5 48 73 / 0.16);
 }
 
-.custom-item-row.is-menu-open .item-menu {
+.checklist-item-row.is-menu-open .item-menu {
   display: grid;
   gap: 0.22rem;
 }
