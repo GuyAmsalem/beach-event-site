@@ -609,15 +609,28 @@ input[type="checkbox"]:focus-visible {
   }
 
   .checklist-grid article {
+    display: block;
     height: auto;
     overflow: visible;
   }
 
   .article-body {
-    overflow: visible;
+    overflow: visible !important;
+    overflow-y: visible !important;
     min-height: auto;
     max-height: none;
     overscroll-behavior: auto;
+    -webkit-overflow-scrolling: auto;
+    padding-inline-end: 0;
+  }
+
+  .checklist-grid,
+  .checklist-grid article,
+  .article-body,
+  .checklist-item-row,
+  .checklist-item-main,
+  label {
+    touch-action: pan-y;
   }
 
   .item-composer {
