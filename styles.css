@@ -609,7 +609,15 @@ input[type="checkbox"]:focus-visible {
   }
 
   .checklist-grid article {
-    height: 495px;
+    height: auto;
+    overflow: visible;
+  }
+
+  .article-body {
+    overflow: visible;
+    min-height: auto;
+    max-height: none;
+    overscroll-behavior: auto;
   }
 
   .item-composer {
