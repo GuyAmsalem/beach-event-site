@@ -11,6 +11,11 @@ let checkboxState = {};
 let customItemsByArticle = {};
 let syncEngine = null;
 const boundCheckboxes = new WeakSet();
+const MAX_CUSTOM_ITEM_LENGTH = 80;
+
+function checkboxIdForItem(articleKey, itemId) {
+  return `custom-${safeIdPart(articleKey)}-${safeIdPart(itemId)}`;
+}
 
 function getCheckboxes() {
   return Array.from(document.querySelectorAll('input[type="checkbox"][id]'));
@@ -101,25 +106,131 @@ function persistLocalState() {
   saveCustomItems(customItemsByArticle);
 }
 
-function createCustomLabel(article, checkboxId, text) {
-  const label = document.createElement("label");
-  label.className = "custom-item-label";
+function pushStateUpdate({ sync = true } = {}) {
+  persistLocalState();
+  updateProgress();
+  if (sync) {
+    syncEngine?.schedulePush();
+  }
+}
+
+function ensureArticleItems(articleKey) {
+  if (!Array.isArray(customItemsByArticle[articleKey])) {
+    customItemsByArticle[articleKey] = [];
+  }
+  return customItemsByArticle[articleKey];
+}
+
+function addCustomItem(articleKey, rawText) {
+  const text = String(rawText ?? "").trim().slice(0, MAX_CUSTOM_ITEM_LENGTH);
+  if (!articleKey || !text) {
+    return null;
+  }
+
+  const itemId = `i${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  const items = ensureArticleItems(articleKey);
+  items.push({ id: itemId, text });
+  checkboxState[checkboxIdForItem(articleKey, itemId)] = false;
+  pushStateUpdate();
+  return itemId;
+}
+
+function renameCustomItem(articleKey, itemId, rawText) {
+  const nextText = String(rawText ?? "").trim().slice(0, MAX_CUSTOM_ITEM_LENGTH);
+  if (!articleKey || !itemId || !nextText) {
+    return false;
+  }
+
+  const items = ensureArticleItems(articleKey);
+  const target = items.find((item) => item.id === itemId);
+  if (!target || target.text === nextText) {
+    return false;
+  }
+
+  target.text = nextText;
+  pushStateUpdate();
+  return true;
+}
+
+function deleteCustomItem(articleKey, itemId) {
+  if (!articleKey || !itemId) {
+    return false;
+  }
+
+  const items = ensureArticleItems(articleKey);
+  const nextItems = items.filter((item) => item.id !== itemId);
+  if (nextItems.length === items.length) {
+    return false;
+  }
+
+  customItemsByArticle[articleKey] = nextItems;
+  delete checkboxState[checkboxIdForItem(articleKey, itemId)];
+  pushStateUpdate();
+  return true;
+}
+
+function toggleCheckboxState(checkboxId, checked) {
+  checkboxState[checkboxId] = Boolean(checked);
+  pushStateUpdate();
+}
+
+function closeAllItemMenus(exceptRow = null) {
+  document.querySelectorAll(".custom-item-row.is-menu-open").forEach((row) => {
+    if (row !== exceptRow) {
+      row.classList.remove("is-menu-open");
+    }
+  });
+}
+
+function createCustomItemRow(article, articleKey, item) {
+  const checkboxId = checkboxIdForItem(articleKey, item.id);
+  const row = document.createElement("div");
+  row.className = "checklist-item-row custom-item-row";
+  row.dataset.articleKey = articleKey;
+  row.dataset.itemId = item.id;
+
+  const mainLabel = document.createElement("label");
+  mainLabel.className = "checklist-item-main";
+  mainLabel.setAttribute("for", checkboxId);
 
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
   checkbox.id = checkboxId;
 
   const textNode = document.createElement("span");
-  textNode.textContent = text;
+  textNode.className = "item-text";
+  textNode.textContent = item.text;
 
-  label.append(checkbox, textNode);
+  mainLabel.append(checkbox, textNode);
+
+  const actions = document.createElement("div");
+  actions.className = "item-actions";
+  actions.innerHTML = `
+    <button type="button" class="item-action-btn edit" data-action="edit">עריכה</button>
+    <button type="button" class="item-action-btn delete" data-action="delete">מחיקה</button>
+  `;
+
+  const menuTrigger = document.createElement("button");
+  menuTrigger.type = "button";
+  menuTrigger.className = "item-menu-trigger";
+  menuTrigger.setAttribute("aria-label", "פתיחת תפריט פעולות");
+  menuTrigger.textContent = "⋮";
+
+  const menu = document.createElement("div");
+  menu.className = "item-menu";
+  menu.innerHTML = `
+    <button type="button" class="item-menu-btn" data-action="edit">עריכה</button>
+    <button type="button" class="item-menu-btn danger" data-action="delete">מחיקה</button>
+  `;
+
+  row.append(mainLabel, actions, menuTrigger, menu);
   const articleBody = getArticleBody(article);
   if (articleBody) {
-    articleBody.append(label);
+    articleBody.append(row);
   } else {
-    article.append(label);
+    article.append(row);
   }
-  return checkbox;
+  return row;
 }
 
 function getChecklistArticles() {
@@ -184,10 +295,7 @@ function ensureArticleKeys() {
 }
 
 function onCheckboxChange(checkbox) {
-  checkboxState[checkbox.id] = checkbox.checked;
-  persistLocalState();
-  updateProgress();
-  syncEngine?.schedulePush();
+  toggleCheckboxState(checkbox.id, checkbox.checked);
 }
 
 function bindCheckboxPersistence() {
@@ -207,7 +315,7 @@ function ensureItemComposer() {
       composer = document.createElement("form");
       composer.className = "item-composer";
       composer.innerHTML = `
-        <input type="text" class="item-composer-input" placeholder="פריט חדש לרשימה..." maxlength="80" />
+        <input type="text" class="item-composer-input" placeholder="פריט חדש לרשימה..." maxlength="${MAX_CUSTOM_ITEM_LENGTH}" />
         <button type="submit" class="item-composer-btn">הוסף</button>
       `;
       const articleFooter = article.querySelector(".article-footer");
@@ -221,7 +329,8 @@ function ensureItemComposer() {
 }
 
 function clearCustomItemsFromDom() {
-  document.querySelectorAll(".custom-item-label").forEach((node) => node.remove());
+  closeAllItemMenus();
+  document.querySelectorAll(".custom-item-row").forEach((node) => node.remove());
 }
 
 function restoreCustomItemsFromState() {
@@ -234,9 +343,144 @@ function restoreCustomItemsFromState() {
 
     const items = Array.isArray(customItemsByArticle[articleKey]) ? customItemsByArticle[articleKey] : [];
     items.forEach((item) => {
-      const checkboxId = `custom-${safeIdPart(articleKey)}-${safeIdPart(item.id)}`;
-      createCustomLabel(article, checkboxId, item.text);
+      createCustomItemRow(article, articleKey, item);
     });
+  });
+}
+
+function beginInlineEdit(row, articleKey, itemId) {
+  if (!row || row.classList.contains("is-editing")) {
+    return;
+  }
+
+  const textNode = row.querySelector(".item-text");
+  if (!textNode) {
+    return;
+  }
+
+  const originalText = textNode.textContent ?? "";
+  row.classList.add("is-editing");
+  row.classList.remove("is-menu-open");
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "item-edit-input";
+  input.maxLength = MAX_CUSTOM_ITEM_LENGTH;
+  input.value = originalText;
+  textNode.replaceWith(input);
+
+  const finishEdit = (shouldSave) => {
+    if (!row.classList.contains("is-editing")) {
+      return;
+    }
+    row.classList.remove("is-editing");
+    const nextValue = input.value.trim();
+    if (shouldSave && nextValue && nextValue !== originalText) {
+      if (renameCustomItem(articleKey, itemId, nextValue)) {
+        restoreCustomItemsFromState();
+        bindCheckboxPersistence();
+        applyCheckboxStateToDom();
+      }
+    }
+    updateProgress();
+    closeAllItemMenus();
+    if (input.isConnected) {
+      const restoredText = document.createElement("span");
+      restoredText.className = "item-text";
+      restoredText.textContent = nextValue || originalText;
+      input.replaceWith(restoredText);
+    }
+  };
+
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      finishEdit(true);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      finishEdit(false);
+    }
+  });
+  input.addEventListener("blur", () => finishEdit(true));
+  input.focus();
+  input.select();
+}
+
+function handleCustomItemAction(row, action) {
+  if (!row) {
+    return;
+  }
+  const articleKey = row.dataset.articleKey;
+  const itemId = row.dataset.itemId;
+  if (!articleKey || !itemId) {
+    return;
+  }
+
+  if (action === "edit") {
+    beginInlineEdit(row, articleKey, itemId);
+    return;
+  }
+
+  if (action === "delete" && deleteCustomItem(articleKey, itemId)) {
+    restoreCustomItemsFromState();
+    bindCheckboxPersistence();
+    applyCheckboxStateToDom();
+    updateProgress();
+  }
+}
+
+function bindCustomItemActions() {
+  getChecklistArticles().forEach((article) => {
+    const body = getArticleBody(article);
+    if (!body || body.dataset.customActionsBound === "true") {
+      return;
+    }
+
+    body.dataset.customActionsBound = "true";
+    body.addEventListener("click", (event) => {
+      const trigger = event.target.closest("[data-action], .item-menu-trigger");
+      if (!trigger) {
+        return;
+      }
+
+      const row = trigger.closest(".custom-item-row");
+      if (!row) {
+        return;
+      }
+
+      if (trigger.classList.contains("item-menu-trigger")) {
+        event.preventDefault();
+        const willOpen = !row.classList.contains("is-menu-open");
+        closeAllItemMenus(row);
+        row.classList.toggle("is-menu-open", willOpen);
+        return;
+      }
+
+      const action = trigger.dataset.action;
+      if (!action) {
+        return;
+      }
+      event.preventDefault();
+      handleCustomItemAction(row, action);
+    });
+  });
+}
+
+function bindGlobalMenuDismiss() {
+  if (document.body.dataset.customMenuDismissBound === "true") {
+    return;
+  }
+  document.body.dataset.customMenuDismissBound = "true";
+
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) {
+      closeAllItemMenus();
+      return;
+    }
+    if (!target.closest(".custom-item-row")) {
+      closeAllItemMenus();
+    }
   });
 }
 
@@ -264,24 +508,16 @@ function bindItemComposer() {
         return;
       }
 
-      const itemId = `i${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-      const checkboxId = `custom-${safeIdPart(articleKey)}-${itemId}`;
-
-      if (!Array.isArray(customItemsByArticle[articleKey])) {
-        customItemsByArticle[articleKey] = [];
+      if (!addCustomItem(articleKey, text)) {
+        return;
       }
-      customItemsByArticle[articleKey].push({ id: itemId, text });
 
-      checkboxState[checkboxId] = false;
-      persistLocalState();
-
-      const checkbox = createCustomLabel(article, checkboxId, text);
-      checkbox.checked = false;
+      restoreCustomItemsFromState();
+      bindCustomItemActions();
       bindCheckboxPersistence();
+      applyCheckboxStateToDom();
 
       input.value = "";
-      updateProgress();
-      syncEngine?.schedulePush();
     });
   });
 }
@@ -370,6 +606,7 @@ function applySnapshot(snapshot) {
 
   persistLocalState();
   restoreCustomItemsFromState();
+  bindCustomItemActions();
   bindCheckboxPersistence();
   applyCheckboxStateToDom();
   updateProgress();
@@ -641,6 +878,8 @@ async function init() {
   checkboxState = normalizeCheckboxState(loadState());
   customItemsByArticle = normalizeCustomItems(loadCustomItems());
   restoreCustomItemsFromState();
+  bindCustomItemActions();
+  bindGlobalMenuDismiss();
   applyCheckboxStateToDom();
   bindCheckboxPersistence();
   bindItemComposer();
