@@ -192,6 +192,14 @@
       <p>בנינו את הדף כדי לעשות סדר ולהתחיל את הווייב עוד לפני שמגיעים לחוף.</p>
     </footer>
 
-    <script src="./app.js"></script>
+    <script src="./app-config.js"></script>
+    <script>
+      window.__APP_CONFIG__ = window.__APP_CONFIG__ ?? {
+        supabaseUrl: "",
+        supabaseAnonKey: "",
+        eventId: "beach-event-2026-shared",
+      };
+    </script>
+    <script type="module" src="./app.js"></script>
   </body>
 </html>

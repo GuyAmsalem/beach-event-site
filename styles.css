@@ -172,13 +172,13 @@ h1 {
 }
 
 .article-progress {
-  margin: 0 0 0.95rem;
-  padding: 0.48rem 0.64rem 0.56rem;
+  margin: 0 0 0.52rem;
+  padding: 0.28rem 0.46rem 0.3rem;
   border: 1px solid rgb(255 255 255 / 0.22);
-  border-radius: 12px;
-  background: rgb(255 255 255 / 0.12);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  border-radius: 10px;
+  background: rgb(255 255 255 / 0.1);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
 .article-progress-head {
@@ -186,26 +186,26 @@ h1 {
   align-items: center;
   justify-content: space-between;
   gap: 0.6rem;
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.24rem;
 }
 
 .article-progress-label {
   color: #0b4a6c;
-  font-size: 0.86rem;
+  font-size: 0.72rem;
   font-weight: 700;
 }
 
 .article-progress-text {
   color: #0a3f5d;
-  font-size: 0.82rem;
+  font-size: 0.7rem;
   font-weight: 700;
 }
 
 .article-progress-track {
   width: 100%;
-  height: 0.5rem;
+  height: 0.28rem;
   border-radius: 999px;
-  background: rgb(255 255 255 / 0.24);
+  background: rgb(255 255 255 / 0.2);
   overflow: hidden;
 }
 
@@ -220,11 +220,15 @@ h1 {
 }
 
 .article-progress-feedback {
-  margin: 0.42rem 0 0;
-  min-height: 1.05rem;
+  margin: 0.18rem 0 0;
+  height: 0.72rem;
+  line-height: 0.72rem;
   color: #0a5a7f;
-  font-size: 0.84rem;
+  font-size: 0.7rem;
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .checklist-grid {
@@ -237,10 +241,90 @@ h1 {
   background: var(--surface-2);
   border: 1px solid rgb(12 89 126 / 0.14);
   border-radius: var(--radius-md);
-  padding: 0.85rem 0.82rem;
+  padding: 0.75rem 0.72rem;
   box-shadow: var(--shadow-sm);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
+  height: 540px;
+  overflow: hidden;
+}
+
+.article-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-inline-end: 0.2rem;
+}
+
+.article-footer {
+  margin-top: 0.42rem;
+  padding-top: 0.34rem;
+  border-top: 1px solid rgb(8 89 123 / 0.14);
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.08), rgb(255 255 255 / 0.16));
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.item-composer {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 0;
+}
+
+.item-composer-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid rgb(22 116 153 / 0.26);
+  background: rgb(255 255 255 / 0.26);
+  border-radius: 999px;
+  padding: 0.28rem 0.58rem;
+  color: #093a57;
+  font: inherit;
+  font-size: 0.74rem;
+}
+
+.item-composer-input::placeholder {
+  color: rgb(8 69 100 / 0.65);
+}
+
+.item-composer-input:focus-visible {
+  outline: 2px solid rgb(40 161 193 / 0.7);
+  outline-offset: 1px;
+}
+
+.item-composer-btn {
+  border: 1px solid rgb(255 255 255 / 0.44);
+  background: linear-gradient(135deg, rgb(37 163 193 / 0.8), rgb(11 122 171 / 0.88));
+  color: #f4fdff;
+  border-radius: 999px;
+  padding: 0.24rem 0.62rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.item-composer-btn:hover,
+.item-composer-btn:focus-visible {
+  filter: brightness(1.05);
+  outline: none;
+}
+
+.custom-item-label {
+  border-style: dashed;
+}
+
+.checklist-grid article.is-complete {
+  background: linear-gradient(170deg, rgb(209 247 223 / 0.46), rgb(236 255 243 / 0.32));
+  border-color: rgb(64 177 104 / 0.4);
+  box-shadow: 0 10px 24px rgb(45 163 92 / 0.2);
+}
+
+.checklist-grid article.is-complete h3 {
+  color: #2d7f4c;
+  border-bottom-color: rgb(64 177 104 / 0.32);
 }
 
 .checklist-grid h3 {
@@ -251,6 +335,20 @@ h1 {
   font-weight: 700;
   padding-bottom: 0.44rem;
   border-bottom: 1px solid rgb(4 109 147 / 0.15);
+}
+
+.article-body::-webkit-scrollbar {
+  width: 0.36rem;
+}
+
+.article-body::-webkit-scrollbar-thumb {
+  background: rgb(11 126 167 / 0.35);
+  border-radius: 999px;
+}
+
+.article-body::-webkit-scrollbar-track {
+  background: rgb(255 255 255 / 0.12);
+  border-radius: 999px;
 }
 
 #essential h2 {
@@ -387,6 +485,18 @@ input[type="checkbox"]:focus-visible {
   .checklist-grid {
     grid-template-columns: 1fr;
     gap: 0.75rem;
+  }
+
+  .checklist-grid article {
+    height: 495px;
+  }
+
+  .item-composer {
+    margin-top: 0.4rem;
+  }
+
+  .item-composer-input {
+    font-size: 0.72rem;
   }
 
   label {

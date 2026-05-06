@@ -21,5 +21,17 @@
 
 ## Notes
 
-- מצב צ'קליסטים נשמר בדפדפן באמצעות `localStorage`.
+- מצב צ'קליסטים נשמר ב-Supabase בזמן אמת (עם fallback ל-`localStorage` אם אין חיבור).
 - הקובץ `.nojekyll` נוסף כדי למנוע עיבוד Jekyll לא נחוץ.
+
+## Supabase Setup
+
+1. יוצרים פרויקט ב-Supabase.
+2. מריצים ב-SQL Editor את התוכן של `supabase.sql`.
+3. מעתיקים `Project URL` ו-`anon public key` מתוך Settings -> API.
+4. יוצרים קובץ `app-config.js` על בסיס `app-config.example.js` ומעדכנים בו:
+   - `supabaseUrl`
+   - `supabaseAnonKey`
+   - `eventId` (אפשר להשאיר ערך קיים לאירוע יחיד)
+5. `app-config.js` מוגדר ב-`.gitignore`, כך שהמפתחות האמיתיים נשארים לוקאליים ולא עולים לריפו.
+6. פותחים את האתר בשני חלונות/מכשירים ובודקים שהסימונים והפריטים החדשים מסתנכרנים.
