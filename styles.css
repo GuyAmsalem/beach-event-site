@@ -92,10 +92,7 @@ h1 {
 }
 
 .wave-divider {
-  height: 16px;
-  background: radial-gradient(44px 16px at 24px 0, rgb(255 255 255 / 0.65) 98%, transparent 100%) repeat-x;
-  background-size: 48px 16px;
-  opacity: 0.62;
+  display: none;
 }
 
 .main-nav {
@@ -169,6 +166,40 @@ h1 {
   text-align: center;
   font-size: clamp(1.22rem, 2vw, 1.45rem);
   letter-spacing: 0.01em;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.95rem;
+}
+
+.section-header h2 {
+  margin: 0;
+  text-align: right;
+}
+
+.personal-reset-btn {
+  border: 1px solid rgb(255 255 255 / 0.45);
+  background: linear-gradient(135deg, rgb(255 124 98 / 0.88), rgb(255 104 112 / 0.88));
+  color: #fff;
+  border-radius: 999px;
+  padding: 0.34rem 0.76rem;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 7px 16px rgb(255 110 122 / 0.28);
+}
+
+.personal-reset-btn:hover,
+.personal-reset-btn:focus-visible {
+  filter: saturate(1.06);
+  transform: translateY(-1px);
+  outline: none;
 }
 
 .article-progress {
@@ -479,6 +510,31 @@ h1 {
   border-bottom: 1px solid rgb(4 109 147 / 0.15);
 }
 
+.storage-scope-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: -0.15rem auto 0.5rem;
+  padding: 0.16rem 0.56rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-align: center;
+}
+
+.storage-scope-hint.is-personal {
+  color: #0f5e41;
+  background: rgb(86 217 158 / 0.2);
+  border: 1px solid rgb(53 174 120 / 0.4);
+}
+
+.storage-scope-hint.is-shared {
+  color: #0d5578;
+  background: rgb(41 174 216 / 0.18);
+  border: 1px solid rgb(15 130 181 / 0.34);
+}
+
 .article-body::-webkit-scrollbar {
   width: 0.36rem;
 }
@@ -622,6 +678,21 @@ input[type="checkbox"]:focus-visible {
   .card h2 {
     font-size: 1.12rem;
     margin-bottom: 0.75rem;
+  }
+
+  .section-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .section-header h2 {
+    text-align: center;
+  }
+
+  .personal-reset-btn {
+    width: 100%;
   }
 
   .checklist-grid {

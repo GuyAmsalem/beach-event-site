@@ -145,10 +145,69 @@ function normalizeBuiltInOverrides(value) {
   return normalized;
 }
 
-function snapshotHash(checkboxes, customItems) {
+function isPersonalCheckboxId(checkboxId) {
+  return String(checkboxId ?? "").startsWith("personal-");
+}
+
+function isPersonalArticleKey(articleKey) {
+  return String(articleKey ?? "").startsWith("personal::");
+}
+
+function splitCheckboxStateByScope(state) {
+  const personal = {};
+  const shared = {};
+  Object.entries(normalizeCheckboxState(state)).forEach(([checkboxId, checked]) => {
+    if (isPersonalCheckboxId(checkboxId)) {
+      personal[checkboxId] = checked;
+    } else {
+      shared[checkboxId] = checked;
+    }
+  });
+  return { personal, shared };
+}
+
+function splitCustomItemsByScope(itemsByArticle) {
+  const personal = {};
+  const shared = {};
+  Object.entries(normalizeCustomItems(itemsByArticle)).forEach(([articleKey, items]) => {
+    if (isPersonalArticleKey(articleKey)) {
+      personal[articleKey] = items;
+    } else {
+      shared[articleKey] = items;
+    }
+  });
+  return { personal, shared };
+}
+
+function collectPersonalLocalState() {
+  const checkboxScopes = splitCheckboxStateByScope(checkboxState);
+  const customScopes = splitCustomItemsByScope(customItemsByArticle);
+  return {
+    checkboxState: checkboxScopes.personal,
+    customItems: customScopes.personal,
+  };
+}
+
+function collectSharedSnapshot() {
+  const checkboxScopes = splitCheckboxStateByScope(checkboxState);
+  const customScopes = splitCustomItemsByScope(customItemsByArticle);
+  return {
+    checkbox_state: checkboxScopes.shared,
+    custom_items: customScopes.shared,
+  };
+}
+
+function normalizeSharedSnapshot(snapshot) {
+  return {
+    checkbox_state: splitCheckboxStateByScope(snapshot?.checkbox_state).shared,
+    custom_items: splitCustomItemsByScope(snapshot?.custom_items).shared,
+  };
+}
+
+function snapshotHash(snapshot) {
   return JSON.stringify({
-    checkbox_state: checkboxes,
-    custom_items: customItems,
+    checkbox_state: normalizeCheckboxState(snapshot?.checkbox_state),
+    custom_items: normalizeCustomItems(snapshot?.custom_items),
   });
 }
 
@@ -774,8 +833,17 @@ function applyCheckboxStateToDom() {
 }
 
 function applySnapshot(snapshot) {
-  checkboxState = normalizeCheckboxState(snapshot.checkbox_state);
-  customItemsByArticle = normalizeCustomItems(snapshot.custom_items);
+  const personalLocalState = collectPersonalLocalState();
+  const remoteSharedSnapshot = normalizeSharedSnapshot(snapshot);
+
+  checkboxState = {
+    ...remoteSharedSnapshot.checkbox_state,
+    ...personalLocalState.checkboxState,
+  };
+  customItemsByArticle = {
+    ...remoteSharedSnapshot.custom_items,
+    ...personalLocalState.customItems,
+  };
 
   persistLocalState();
   restoreCustomItemsFromState();
@@ -786,10 +854,100 @@ function applySnapshot(snapshot) {
 }
 
 function collectSnapshot() {
-  return {
-    checkbox_state: normalizeCheckboxState(checkboxState),
-    custom_items: normalizeCustomItems(customItemsByArticle),
-  };
+  return collectSharedSnapshot();
+}
+
+function getArticleStorageScope(article) {
+  const section = article.closest("section[id]");
+  return section?.id === "personal" ? "personal" : "shared";
+}
+
+function ensureStorageScopeBadges() {
+  getChecklistArticles().forEach((article) => {
+    const scope = getArticleStorageScope(article);
+    article.dataset.storageScope = scope;
+
+    const title = article.querySelector("h3");
+    if (!title) {
+      return;
+    }
+
+    let hint = article.querySelector(".storage-scope-hint");
+    if (!hint) {
+      hint = document.createElement("div");
+      hint.className = "storage-scope-hint";
+      title.insertAdjacentElement("afterend", hint);
+    }
+
+    if (scope === "personal") {
+      hint.textContent = "👤 פרטית";
+      hint.classList.add("is-personal");
+      hint.classList.remove("is-shared");
+    } else {
+      hint.textContent = "👥 משותפת";
+      hint.classList.add("is-shared");
+      hint.classList.remove("is-personal");
+    }
+  });
+}
+
+function clearPersonalLists() {
+  const checkboxScopes = splitCheckboxStateByScope(checkboxState);
+  const customScopes = splitCustomItemsByScope(customItemsByArticle);
+  checkboxState = checkboxScopes.shared;
+  customItemsByArticle = customScopes.shared;
+
+  Object.keys(builtInItemOverrides).forEach((checkboxId) => {
+    if (isPersonalCheckboxId(checkboxId)) {
+      delete builtInItemOverrides[checkboxId];
+    }
+  });
+
+  persistLocalState();
+}
+
+function ensurePersonalSectionResetButton() {
+  const personalSection = document.getElementById("personal");
+  if (!personalSection) {
+    return;
+  }
+
+  let sectionHeader = personalSection.querySelector(".section-header");
+  const heading = personalSection.querySelector(":scope > h2");
+  if (!heading) {
+    return;
+  }
+
+  if (!sectionHeader) {
+    sectionHeader = document.createElement("div");
+    sectionHeader.className = "section-header";
+    heading.insertAdjacentElement("beforebegin", sectionHeader);
+    sectionHeader.append(heading);
+  }
+
+  let resetButton = sectionHeader.querySelector(".personal-reset-btn");
+  if (!resetButton) {
+    resetButton = document.createElement("button");
+    resetButton.type = "button";
+    resetButton.className = "personal-reset-btn";
+    resetButton.textContent = "איפוס רשימות אישיות";
+    sectionHeader.append(resetButton);
+  }
+
+  if (resetButton.dataset.bound === "true") {
+    return;
+  }
+
+  resetButton.dataset.bound = "true";
+  resetButton.addEventListener("click", () => {
+    const shouldReset = window.confirm("לאפס את כל הרשימות האישיות במכשיר הזה?");
+    if (!shouldReset) {
+      return;
+    }
+
+    clearPersonalLists();
+    window.location.reload();
+  });
 }
 
 class RealtimeSyncEngine {
@@ -823,7 +981,7 @@ class RealtimeSyncEngine {
         custom_items: data.custom_items ?? {},
       };
       applySnapshot(remoteSnapshot);
-      this.lastSyncedHash = snapshotHash(checkboxState, customItemsByArticle);
+      this.lastSyncedHash = snapshotHash(collectSharedSnapshot());
       return;
     }
 
@@ -832,7 +990,7 @@ class RealtimeSyncEngine {
 
   async pushNow() {
     const snapshot = collectSnapshot();
-    const nextHash = snapshotHash(snapshot.checkbox_state, snapshot.custom_items);
+    const nextHash = snapshotHash(snapshot);
 
     if (nextHash === this.lastSyncedHash) {
       return;
@@ -881,19 +1039,16 @@ class RealtimeSyncEngine {
             checkbox_state: nextData.checkbox_state ?? {},
             custom_items: nextData.custom_items ?? {},
           };
-          const remoteHash = snapshotHash(
-            normalizeCheckboxState(remoteSnapshot.checkbox_state),
-            normalizeCustomItems(remoteSnapshot.custom_items),
-          );
+          const remoteHash = snapshotHash(normalizeSharedSnapshot(remoteSnapshot));
 
-          const currentHash = snapshotHash(checkboxState, customItemsByArticle);
+          const currentHash = snapshotHash(collectSharedSnapshot());
           if (remoteHash === currentHash) {
             this.lastSyncedHash = currentHash;
             return;
           }
 
           applySnapshot(remoteSnapshot);
-          this.lastSyncedHash = snapshotHash(checkboxState, customItemsByArticle);
+          this.lastSyncedHash = snapshotHash(collectSharedSnapshot());
         },
       )
       .subscribe();
@@ -1455,6 +1610,8 @@ async function init() {
   ensureBuiltInItemRows();
   ensureItemComposer();
   ensureArticleLayout();
+  ensureStorageScopeBadges();
+  ensurePersonalSectionResetButton();
 
   checkboxState = normalizeCheckboxState(loadState());
   customItemsByArticle = normalizeCustomItems(loadCustomItems());
