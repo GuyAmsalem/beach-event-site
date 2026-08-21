@@ -101,11 +101,13 @@ h1 {
   display: none;
 }
 
-.user-badge-dot {
+.user-badge .user-badge-dot {
   display: inline-block;
   inline-size: 0.5rem;
   block-size: 0.5rem;
+  border: none;
   border-radius: 50%;
+  padding: 0;
   background: #2ecc71;
   box-shadow: 0 0 0 3px rgb(46 204 113 / 0.22);
   flex: 0 0 auto;
