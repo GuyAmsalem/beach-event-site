@@ -464,9 +464,12 @@ function createCustomItemRow(article, articleKey, item) {
 }
 
 function getChecklistArticles() {
-  return Array.from(document.querySelectorAll(".checklist-grid article")).filter(
-    (article) => article.querySelectorAll('input[type="checkbox"][id]').length > 0,
-  );
+  // Every checklist panel lives directly inside a .checklist-grid, regardless
+  // of how many items it currently holds - including zero, once someone
+  // deletes every built-in and custom item from it. Don't filter by current
+  // checkbox count here, or an emptied-out article silently drops out of
+  // every render pass (composer, custom-item restore, progress bar, ...).
+  return Array.from(document.querySelectorAll(".checklist-grid article"));
 }
 
 function getArticleBody(article) {
@@ -896,13 +899,9 @@ function ensureArticleProgressBars() {
 function updateArticleProgressBars() {
   getChecklistArticles().forEach((article) => {
     const articleCheckboxes = Array.from(article.querySelectorAll('input[type="checkbox"][id]'));
-    if (!articleCheckboxes.length) {
-      return;
-    }
-
     const checkedCount = articleCheckboxes.filter((checkbox) => checkbox.checked).length;
     const totalCount = articleCheckboxes.length;
-    const percent = Math.round((checkedCount / totalCount) * 100);
+    const percent = totalCount === 0 ? 0 : Math.round((checkedCount / totalCount) * 100);
 
     const progressWrap = article.querySelector(".article-progress");
     if (!progressWrap) {
@@ -919,9 +918,11 @@ function updateArticleProgressBars() {
     if (progressFill) {
       progressFill.style.width = `${percent}%`;
     }
-    article.classList.toggle("is-complete", percent === 100);
+    article.classList.toggle("is-complete", totalCount > 0 && percent === 100);
     if (progressFeedback) {
-      if (percent === 100) {
+      if (totalCount === 0) {
+        progressFeedback.textContent = "הרשימה ריקה - אפשר להוסיף פריט למטה.";
+      } else if (percent === 100) {
         progressFeedback.textContent = "מעולים! הרשימה הושלמה.";
       } else if (percent >= 70) {
         progressFeedback.textContent = "עוד קצת ואתם שם.";
