@@ -2,8 +2,14 @@ create table if not exists public.event_state (
   event_id text primary key,
   checkbox_state jsonb not null default '{}'::jsonb,
   custom_items jsonb not null default '{}'::jsonb,
+  checked_by jsonb not null default '{}'::jsonb,
   updated_at timestamptz not null default timezone('utc', now())
 );
+
+-- Adds checked_by to a table created before this column existed. Safe to
+-- run again on a fresh table (the column already exists from create table above).
+alter table public.event_state
+  add column if not exists checked_by jsonb not null default '{}'::jsonb;
 
 alter table public.event_state enable row level security;
 

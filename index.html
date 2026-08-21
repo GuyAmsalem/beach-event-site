@@ -10,12 +10,12 @@
       href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./styles.css?v=20260506-2" />
+    <link rel="stylesheet" href="./styles.css?v=20260821-1" />
   </head>
   <body class="is-entry-locked">
     <div
       id="entry-overlay"
-      class="entry-overlay is-locked"
+      class="entry-overlay"
       role="dialog"
       aria-modal="true"
       aria-labelledby="entry-overlay-title"
@@ -29,65 +29,34 @@
         <span class="entry-bubble entry-bubble-5"></span>
       </div>
       <div class="entry-card" role="document">
-        <p class="entry-eyebrow">רגע לפני שמתחילים</p>
+        <p class="entry-eyebrow">רגע לפני שנכנסים</p>
         <h2 id="entry-overlay-title" class="entry-title">
-          <span class="entry-title-emoji" aria-hidden="true">👏</span>
-          מחאו כפיים כדי להיכנס
+          <span class="entry-title-emoji" aria-hidden="true">🏖️</span>
+          איך קוראים לך?
         </h2>
         <p id="entry-overlay-desc" class="entry-desc">
-          לחצו על האזור שלמטה (או על מקש רווח / Enter) בקצב של לפחות שתי לחיצות בשנייה למשך 5 שניות רצופות.
+          השם ישמש לזיהוי בלבד - כדי שנדע מי מסמן מה ברשימות המשותפות.
         </p>
 
-        <button
-          id="entry-clap-zone"
-          type="button"
-          class="entry-clap-zone"
-          aria-label="אזור מחיאת כפיים - לחצו ברצף כדי להיכנס לאתר"
-        >
-          <span class="entry-clap-emoji" aria-hidden="true">👏</span>
-          <span class="entry-clap-hint">הקליקו כאן ברצף</span>
-          <span class="entry-clap-pulse" aria-hidden="true"></span>
-          <span class="entry-clap-pulse entry-clap-pulse-2" aria-hidden="true"></span>
-        </button>
+        <form id="entry-name-form" class="entry-name-form">
+          <input
+            type="text"
+            id="entry-name-input"
+            class="entry-name-input"
+            placeholder="השם שלך"
+            maxlength="30"
+            autocomplete="name"
+            aria-label="השם שלך"
+            required
+          />
+          <button type="submit" class="entry-name-submit">כניסה לאתר</button>
+        </form>
 
-        <div class="entry-meters">
-          <div class="entry-meter">
-            <div class="entry-meter-head">
-              <span class="entry-meter-label">קצב נוכחי</span>
-              <span class="entry-meter-value" id="entry-rate-value">0.0/ש'</span>
-            </div>
-            <div class="entry-meter-track" aria-hidden="true">
-              <span class="entry-meter-fill entry-rate-fill" id="entry-rate-fill"></span>
-              <span class="entry-meter-target" aria-hidden="true"></span>
-            </div>
-          </div>
-          <div class="entry-meter">
-            <div class="entry-meter-head">
-              <span class="entry-meter-label">התקדמות (5 שניות רצופות)</span>
-              <span class="entry-meter-value" id="entry-hold-value">0%</span>
-            </div>
-            <div class="entry-meter-track" aria-hidden="true">
-              <span class="entry-meter-fill entry-hold-fill" id="entry-hold-fill"></span>
-            </div>
-          </div>
-        </div>
-
-        <p class="entry-status" id="entry-status" aria-live="polite">התחילו ללחוץ ברצף 👇</p>
-
-        <div class="entry-actions">
-          <button
-            id="entry-skip-btn"
-            type="button"
-            class="entry-skip-btn"
-            hidden
-          >
-            דלג והיכנס לאתר
-          </button>
-        </div>
+        <p class="entry-status" id="entry-status" aria-live="polite">&nbsp;</p>
 
         <div class="entry-success" id="entry-success" aria-hidden="true">
           <span class="entry-success-emoji">🎉</span>
-          <p class="entry-success-text">כל הכבוד! פותחים את האתר...</p>
+          <p class="entry-success-text" id="entry-success-text">פותחים את האתר...</p>
         </div>
       </div>
     </div>
@@ -108,51 +77,13 @@
     <div class="wave-divider" aria-hidden="true"></div>
 
     <nav class="main-nav">
-      <a href="#personal">ציוד אישי</a>
       <a href="#pairs">חלוקה לפי זוגות</a>
       <a href="#shopping">קניות משותפת</a>
       <a href="#essential">מידע חיוני</a>
+      <a href="#personal">ציוד אישי</a>
     </nav>
 
     <main class="layout">
-      <section id="personal" class="card">
-        <h2>ציוד אישי (באחריות כל אחד לעצמו)</h2>
-        <div class="checklist-grid">
-          <article>
-            <h3>שינה</h3>
-            <label><input type="checkbox" id="personal-sleep-blanket" /> שמיכה</label>
-            <label><input type="checkbox" id="personal-sleep-pillow" /> כרית</label>
-            <label><input type="checkbox" id="personal-sleep-mattress" /> מזרן/שק&quot;ש</label>
-            <label><input type="checkbox" id="personal-sleep-pajamas" /> פיג'מה</label>
-            <label><input type="checkbox" id="personal-sleep-night-clothes" /> בגדים להחלפה (כולל ארוכים ללילה)</label>
-            <label><input type="checkbox" id="personal-sleep-socks" /> גרביים</label>
-          </article>
-          <article>
-            <h3>היגיינה וטיפוח</h3>
-            <label><input type="checkbox" id="personal-hygiene-items" /> מוצרי היגיינה</label>
-            <label><input type="checkbox" id="personal-hygiene-wipes" /> מגבונים</label>
-            <label><input type="checkbox" id="personal-hygiene-toothbrush" /> מברשת ומשחת שיניים</label>
-            <label><input type="checkbox" id="personal-hygiene-comb" /> מסרק</label>
-            <label><input type="checkbox" id="personal-hygiene-sunscreen" /> קרם הגנה</label>
-            <label><input type="checkbox" id="personal-hygiene-perfume" /> בושם ודאודורנט</label>
-            <label><input type="checkbox" id="personal-hygiene-tp" /> נייר טואלט</label>
-          </article>
-          <article>
-            <h3>לים וטכנולוגיה</h3>
-            <label><input type="checkbox" id="personal-beach-swimwear" /> בגד ים</label>
-            <label><input type="checkbox" id="personal-beach-hat" /> כובע</label>
-            <label><input type="checkbox" id="personal-beach-sunglasses" /> משקפי שמש</label>
-            <label><input type="checkbox" id="personal-tech-phone" /> טלפון</label>
-            <label><input type="checkbox" id="personal-tech-charger" /> מטענים ניידים</label>
-          </article>
-          <article>
-            <h3>מיוחד</h3>
-            <label><input type="checkbox" id="personal-special-baby" /> ציוד לגילי התינוק</label>
-            <label><input type="checkbox" id="personal-special-dog" /> ציוד לבלי הכלבה</label>
-          </article>
-        </div>
-      </section>
-
       <section id="pairs" class="card">
         <h2>חלוקת ציוד הקמה לפי זוגות (מתעדכן לכולם)</h2>
         <div class="checklist-grid">
@@ -235,6 +166,44 @@
           <li>מומלץ להטעין תאורה ומטענים ניידים מראש.</li>
         </ul>
       </section>
+
+      <section id="personal" class="card">
+        <h2>ציוד אישי (באחריות כל אחד לעצמו)</h2>
+        <div class="checklist-grid">
+          <article>
+            <h3>שינה</h3>
+            <label><input type="checkbox" id="personal-sleep-blanket" /> שמיכה</label>
+            <label><input type="checkbox" id="personal-sleep-pillow" /> כרית</label>
+            <label><input type="checkbox" id="personal-sleep-mattress" /> מזרן/שק&quot;ש</label>
+            <label><input type="checkbox" id="personal-sleep-pajamas" /> פיג'מה</label>
+            <label><input type="checkbox" id="personal-sleep-night-clothes" /> בגדים להחלפה (כולל ארוכים ללילה)</label>
+            <label><input type="checkbox" id="personal-sleep-socks" /> גרביים</label>
+          </article>
+          <article>
+            <h3>היגיינה וטיפוח</h3>
+            <label><input type="checkbox" id="personal-hygiene-items" /> מוצרי היגיינה</label>
+            <label><input type="checkbox" id="personal-hygiene-wipes" /> מגבונים</label>
+            <label><input type="checkbox" id="personal-hygiene-toothbrush" /> מברשת ומשחת שיניים</label>
+            <label><input type="checkbox" id="personal-hygiene-comb" /> מסרק</label>
+            <label><input type="checkbox" id="personal-hygiene-sunscreen" /> קרם הגנה</label>
+            <label><input type="checkbox" id="personal-hygiene-perfume" /> בושם ודאודורנט</label>
+            <label><input type="checkbox" id="personal-hygiene-tp" /> נייר טואלט</label>
+          </article>
+          <article>
+            <h3>לים וטכנולוגיה</h3>
+            <label><input type="checkbox" id="personal-beach-swimwear" /> בגד ים</label>
+            <label><input type="checkbox" id="personal-beach-hat" /> כובע</label>
+            <label><input type="checkbox" id="personal-beach-sunglasses" /> משקפי שמש</label>
+            <label><input type="checkbox" id="personal-tech-phone" /> טלפון</label>
+            <label><input type="checkbox" id="personal-tech-charger" /> מטענים ניידים</label>
+          </article>
+          <article>
+            <h3>מיוחד</h3>
+            <label><input type="checkbox" id="personal-special-baby" /> ציוד לגילי התינוק</label>
+            <label><input type="checkbox" id="personal-special-dog" /> ציוד לבלי הכלבה</label>
+          </article>
+        </div>
+      </section>
     </main>
 
     <footer class="footer">
@@ -242,7 +211,7 @@
     </footer>
     </div>
 
-    <script src="./app-config.js?v=20260506-2"></script>
+    <script src="./app-config.js?v=20260821-1"></script>
     <script>
       window.__APP_CONFIG__ = window.__APP_CONFIG__ ?? {
         supabaseUrl: "",
@@ -250,6 +219,6 @@
         eventId: "beach-event-2026-shared",
       };
     </script>
-    <script type="module" src="./app.js?v=20260506-2"></script>
+    <script type="module" src="./app.js?v=20260821-1"></script>
   </body>
 </html>

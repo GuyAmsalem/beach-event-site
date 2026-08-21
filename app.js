@@ -1,16 +1,9 @@
 const STORAGE_KEY = "beach-event-checklist-v1";
 const CUSTOM_ITEMS_KEY = "beach-event-custom-items-v1";
 const BUILTIN_ITEM_OVERRIDES_KEY = "beach-event-built-in-item-overrides-v1";
+const CHECKED_BY_KEY = "beach-event-checked-by-v1";
+const USER_NAME_KEY = "beach-event-user-name-v1";
 const DEFAULT_EVENT_ID = "beach-event-2026-shared";
-const ENTRY_GATE_PASSED_KEY = "beach-event-entry-passed-v1";
-
-const ENTRY_GATE = {
-  TARGET_CPS: 2,
-  HOLD_MS: 5000,
-  SKIP_DELAY_MS: 2500,
-  RATE_WINDOW_MS: 1000,
-  RATE_FILL_MAX: 4,
-};
 
 const appConfig = window.__APP_CONFIG__ ?? {};
 const SUPABASE_URL = String(appConfig.supabaseUrl ?? "").trim();
@@ -20,9 +13,12 @@ const EVENT_ID = String(appConfig.eventId ?? DEFAULT_EVENT_ID).trim() || DEFAULT
 let checkboxState = {};
 let customItemsByArticle = {};
 let builtInItemOverrides = {};
+let checkedByState = {};
+let currentUserName = "";
 let syncEngine = null;
 const boundCheckboxes = new WeakSet();
 const MAX_CUSTOM_ITEM_LENGTH = 80;
+const MAX_NAME_LENGTH = 30;
 
 function checkboxIdForItem(articleKey, itemId) {
   return `custom-${safeIdPart(articleKey)}-${safeIdPart(itemId)}`;
@@ -86,6 +82,48 @@ function saveBuiltInOverrides(overrides) {
   localStorage.setItem(BUILTIN_ITEM_OVERRIDES_KEY, JSON.stringify(overrides));
 }
 
+function loadCheckedBy() {
+  const raw = localStorage.getItem(CHECKED_BY_KEY);
+  if (!raw) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveCheckedBy(checkedBy) {
+  localStorage.setItem(CHECKED_BY_KEY, JSON.stringify(checkedBy));
+}
+
+function loadUserName() {
+  try {
+    return String(localStorage.getItem(USER_NAME_KEY) ?? "").trim();
+  } catch {
+    return "";
+  }
+}
+
+function saveUserName(name) {
+  try {
+    localStorage.setItem(USER_NAME_KEY, name);
+  } catch {
+    // ignore storage errors silently
+  }
+}
+
+function clearUserName() {
+  try {
+    localStorage.removeItem(USER_NAME_KEY);
+  } catch {
+    // ignore storage errors silently
+  }
+}
+
 function safeIdPart(value) {
   return value.replace(/[^a-zA-Z0-9_-]/g, "-");
 }
@@ -120,6 +158,20 @@ function normalizeCustomItems(value) {
       .filter((item) => item.id && item.text);
   });
 
+  return normalized;
+}
+
+function normalizeCheckedByState(value) {
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+  const normalized = {};
+  Object.entries(value).forEach(([checkboxId, name]) => {
+    const trimmed = String(name ?? "").trim().slice(0, MAX_NAME_LENGTH);
+    if (trimmed) {
+      normalized[checkboxId] = trimmed;
+    }
+  });
   return normalized;
 }
 
@@ -166,6 +218,37 @@ function splitCheckboxStateByScope(state) {
   return { personal, shared };
 }
 
+function isSharedScopeCheckbox(checkboxId) {
+  const checkbox = document.getElementById(checkboxId);
+  if (checkbox) {
+    const section = checkbox.closest("section[id]");
+    return Boolean(section) && section.id !== "personal";
+  }
+  return !isPersonalCheckboxId(checkboxId);
+}
+
+function splitCheckedByByScope(checkedBy) {
+  const personal = {};
+  const shared = {};
+  Object.entries(normalizeCheckedByState(checkedBy)).forEach(([checkboxId, name]) => {
+    if (isSharedScopeCheckbox(checkboxId)) {
+      shared[checkboxId] = name;
+    } else {
+      personal[checkboxId] = name;
+    }
+  });
+  return { personal, shared };
+}
+
+function setCheckedByState(checkboxId, name) {
+  const trimmed = String(name ?? "").trim().slice(0, MAX_NAME_LENGTH);
+  if (trimmed) {
+    checkedByState[checkboxId] = trimmed;
+  } else {
+    delete checkedByState[checkboxId];
+  }
+}
+
 function splitCustomItemsByScope(itemsByArticle) {
   const personal = {};
   const shared = {};
@@ -191,9 +274,11 @@ function collectPersonalLocalState() {
 function collectSharedSnapshot() {
   const checkboxScopes = splitCheckboxStateByScope(checkboxState);
   const customScopes = splitCustomItemsByScope(customItemsByArticle);
+  const checkedByScopes = splitCheckedByByScope(checkedByState);
   return {
     checkbox_state: checkboxScopes.shared,
     custom_items: customScopes.shared,
+    checked_by: checkedByScopes.shared,
   };
 }
 
@@ -201,6 +286,7 @@ function normalizeSharedSnapshot(snapshot) {
   return {
     checkbox_state: splitCheckboxStateByScope(snapshot?.checkbox_state).shared,
     custom_items: splitCustomItemsByScope(snapshot?.custom_items).shared,
+    checked_by: splitCheckedByByScope(snapshot?.checked_by).shared,
   };
 }
 
@@ -208,6 +294,7 @@ function snapshotHash(snapshot) {
   return JSON.stringify({
     checkbox_state: normalizeCheckboxState(snapshot?.checkbox_state),
     custom_items: normalizeCustomItems(snapshot?.custom_items),
+    checked_by: normalizeCheckedByState(snapshot?.checked_by),
   });
 }
 
@@ -215,6 +302,7 @@ function persistLocalState() {
   saveState(checkboxState);
   saveCustomItems(customItemsByArticle);
   saveBuiltInOverrides(builtInItemOverrides);
+  saveCheckedBy(checkedByState);
 }
 
 function pushStateUpdate({ sync = true } = {}) {
@@ -274,8 +362,10 @@ function deleteCustomItem(articleKey, itemId) {
     return false;
   }
 
+  const removedCheckboxId = checkboxIdForItem(articleKey, itemId);
   customItemsByArticle[articleKey] = nextItems;
-  delete checkboxState[checkboxIdForItem(articleKey, itemId)];
+  delete checkboxState[removedCheckboxId];
+  delete checkedByState[removedCheckboxId];
   pushStateUpdate();
   return true;
 }
@@ -283,6 +373,14 @@ function deleteCustomItem(articleKey, itemId) {
 function toggleCheckboxState(checkboxId, checked) {
   checkboxState[checkboxId] = Boolean(checked);
   pushStateUpdate();
+}
+
+function onCheckboxChange(checkbox) {
+  if (isSharedScopeCheckbox(checkbox.id)) {
+    setCheckedByState(checkbox.id, checkbox.checked ? currentUserName : "");
+  }
+  toggleCheckboxState(checkbox.id, checkbox.checked);
+  applyCheckedByToDom();
 }
 
 function closeAllItemMenus(exceptRow = null) {
@@ -317,6 +415,7 @@ function createCustomItemRow(article, articleKey, item) {
   row.className = "checklist-item-row custom-item-row";
   row.dataset.articleKey = articleKey;
   row.dataset.itemId = item.id;
+  row.dataset.checkboxId = checkboxId;
 
   const mainLabel = document.createElement("label");
   mainLabel.className = "checklist-item-main";
@@ -326,11 +425,19 @@ function createCustomItemRow(article, articleKey, item) {
   checkbox.type = "checkbox";
   checkbox.id = checkboxId;
 
+  const textWrap = document.createElement("span");
+  textWrap.className = "item-text-wrap";
+
   const textNode = document.createElement("span");
   textNode.className = "item-text";
   textNode.textContent = item.text;
 
-  mainLabel.append(checkbox, textNode);
+  const checkedByNode = document.createElement("span");
+  checkedByNode.className = "item-checked-by";
+  checkedByNode.hidden = true;
+
+  textWrap.append(textNode, checkedByNode);
+  mainLabel.append(checkbox, textWrap);
 
   const actions = document.createElement("div");
   actions.className = "item-actions";
@@ -417,10 +524,6 @@ function ensureArticleKeys() {
   });
 }
 
-function onCheckboxChange(checkbox) {
-  toggleCheckboxState(checkbox.id, checkbox.checked);
-}
-
 function bindCheckboxPersistence() {
   getCheckboxes().forEach((checkbox) => {
     if (boundCheckboxes.has(checkbox)) {
@@ -475,6 +578,7 @@ function ensureBuiltInItemRows() {
       if (override?.deleted) {
         label.remove();
         delete checkboxState[checkboxId];
+        delete checkedByState[checkboxId];
         return;
       }
 
@@ -493,7 +597,14 @@ function ensureBuiltInItemRows() {
             node.remove();
           }
         });
-        label.append(textNode);
+
+        const textWrap = document.createElement("span");
+        textWrap.className = "item-text-wrap";
+        const checkedByNode = document.createElement("span");
+        checkedByNode.className = "item-checked-by";
+        checkedByNode.hidden = true;
+        textWrap.append(textNode, checkedByNode);
+        label.append(textWrap);
       }
 
       if (override?.text) {
@@ -652,6 +763,7 @@ function handleBuiltInItemAction(row, action) {
       deleted: true,
     };
     delete checkboxState[checkboxId];
+    delete checkedByState[checkboxId];
     row.remove();
     pushStateUpdate();
   }
@@ -830,6 +942,24 @@ function applyCheckboxStateToDom() {
   getCheckboxes().forEach((checkbox) => {
     checkbox.checked = Boolean(checkboxState[checkbox.id]);
   });
+  applyCheckedByToDom();
+}
+
+function applyCheckedByToDom() {
+  document.querySelectorAll(".checklist-item-row[data-checkbox-id]").forEach((row) => {
+    const badge = row.querySelector(".item-checked-by");
+    if (!badge) {
+      return;
+    }
+    const name = checkedByState[row.dataset.checkboxId];
+    if (name) {
+      badge.textContent = `סומן ע"י ${name}`;
+      badge.hidden = false;
+    } else {
+      badge.textContent = "";
+      badge.hidden = true;
+    }
+  });
 }
 
 function applySnapshot(snapshot) {
@@ -843,6 +973,9 @@ function applySnapshot(snapshot) {
   customItemsByArticle = {
     ...remoteSharedSnapshot.custom_items,
     ...personalLocalState.customItems,
+  };
+  checkedByState = {
+    ...remoteSharedSnapshot.checked_by,
   };
 
   persistLocalState();
@@ -966,7 +1099,7 @@ class RealtimeSyncEngine {
   async pullRemoteSnapshot() {
     const { data, error } = await this.client
       .from("event_state")
-      .select("checkbox_state, custom_items")
+      .select("checkbox_state, custom_items, checked_by")
       .eq("event_id", this.eventId)
       .maybeSingle();
 
@@ -979,6 +1112,7 @@ class RealtimeSyncEngine {
       const remoteSnapshot = {
         checkbox_state: data.checkbox_state ?? {},
         custom_items: data.custom_items ?? {},
+        checked_by: data.checked_by ?? {},
       };
       applySnapshot(remoteSnapshot);
       this.lastSyncedHash = snapshotHash(collectSharedSnapshot());
@@ -1000,6 +1134,7 @@ class RealtimeSyncEngine {
       event_id: this.eventId,
       checkbox_state: snapshot.checkbox_state,
       custom_items: snapshot.custom_items,
+      checked_by: snapshot.checked_by,
       updated_at: new Date().toISOString(),
     };
 
@@ -1038,6 +1173,7 @@ class RealtimeSyncEngine {
           const remoteSnapshot = {
             checkbox_state: nextData.checkbox_state ?? {},
             custom_items: nextData.custom_items ?? {},
+            checked_by: nextData.checked_by ?? {},
           };
           const remoteHash = snapshotHash(normalizeSharedSnapshot(remoteSnapshot));
 
@@ -1297,29 +1433,13 @@ function alivePiecesAllOffscreen(pieces) {
   return pieces.every((p) => p.y - p.size > window.innerHeight + 40);
 }
 
-const EntryGate = {
+const NameGate = {
   overlayEl: null,
-  cardEl: null,
-  clapZoneEl: null,
-  rateFillEl: null,
-  rateValueEl: null,
-  holdFillEl: null,
-  holdValueEl: null,
+  formEl: null,
+  inputEl: null,
   statusEl: null,
-  skipBtnEl: null,
   successEl: null,
   contentEl: null,
-  popTimeoutId: 0,
-  rafId: 0,
-  skipTimeoutId: 0,
-  clapTimestamps: [],
-  onTargetSince: null,
-  isActive: false,
-  unlocking: false,
-  lastStatusKey: "",
-  reducedMotion: false,
-  keydownHandler: null,
-  pointerHandler: null,
 
   start() {
     this.overlayEl = document.getElementById("entry-overlay");
@@ -1328,22 +1448,16 @@ const EntryGate = {
       return;
     }
 
-    if (this.alreadyPassed()) {
+    currentUserName = loadUserName();
+    if (currentUserName) {
       this.bypassImmediately();
       return;
     }
 
-    this.cardEl = this.overlayEl.querySelector(".entry-card");
-    this.clapZoneEl = document.getElementById("entry-clap-zone");
-    this.rateFillEl = document.getElementById("entry-rate-fill");
-    this.rateValueEl = document.getElementById("entry-rate-value");
-    this.holdFillEl = document.getElementById("entry-hold-fill");
-    this.holdValueEl = document.getElementById("entry-hold-value");
+    this.formEl = document.getElementById("entry-name-form");
+    this.inputEl = document.getElementById("entry-name-input");
     this.statusEl = document.getElementById("entry-status");
-    this.skipBtnEl = document.getElementById("entry-skip-btn");
     this.successEl = document.getElementById("entry-success");
-
-    this.reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
 
     document.documentElement.classList.add("is-entry-locked");
     document.body.classList.add("is-entry-locked");
@@ -1351,237 +1465,50 @@ const EntryGate = {
       this.contentEl.setAttribute("inert", "");
     }
 
-    this.bindEvents();
-    this.scheduleSkipReveal();
-    this.startTicking();
-    this.isActive = true;
+    this.formEl?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      this.trySubmit();
+    });
 
     setTimeout(() => {
-      this.clapZoneEl?.focus({ preventScroll: true });
+      this.inputEl?.focus({ preventScroll: true });
     }, 60);
   },
 
-  alreadyPassed() {
-    try {
-      return sessionStorage.getItem(ENTRY_GATE_PASSED_KEY) === "1";
-    } catch {
-      return false;
-    }
-  },
-
-  rememberPassed() {
-    try {
-      sessionStorage.setItem(ENTRY_GATE_PASSED_KEY, "1");
-    } catch {
-      // ignore storage errors silently
-    }
-  },
-
-  bypassImmediately() {
-    this.overlayEl?.setAttribute("hidden", "");
-    document.documentElement.classList.remove("is-entry-locked");
-    document.body.classList.remove("is-entry-locked");
-    if (this.contentEl) {
-      this.contentEl.removeAttribute("inert");
-    }
-  },
-
-  bindEvents() {
-    if (!this.clapZoneEl) {
+  trySubmit() {
+    const name = String(this.inputEl?.value ?? "").trim().slice(0, MAX_NAME_LENGTH);
+    if (!name) {
+      if (this.statusEl) {
+        this.statusEl.textContent = "צריך להזין שם כדי להיכנס 🙂";
+      }
+      this.inputEl?.focus();
       return;
     }
 
-    this.pointerHandler = (event) => {
-      event.preventDefault();
-      this.recordClap();
-    };
-    this.clapZoneEl.addEventListener("pointerdown", this.pointerHandler);
-
-    this.clapZoneEl.addEventListener("click", (event) => {
-      event.preventDefault();
-    });
-
-    this.keydownHandler = (event) => {
-      if (!this.isActive) {
-        return;
-      }
-      if (event.target instanceof HTMLElement && event.target.id === "entry-skip-btn") {
-        return;
-      }
-      if (event.key === " " || event.key === "Spacebar" || event.key === "Enter") {
-        if (event.repeat) {
-          return;
-        }
-        event.preventDefault();
-        this.recordClap();
-      }
-    };
-    document.addEventListener("keydown", this.keydownHandler);
-
-    if (this.skipBtnEl) {
-      this.skipBtnEl.addEventListener("click", () => this.unlock({ celebrate: false }));
-    }
-  },
-
-  scheduleSkipReveal() {
-    if (!this.skipBtnEl) {
-      return;
-    }
-    this.skipTimeoutId = window.setTimeout(() => {
-      if (!this.skipBtnEl) {
-        return;
-      }
-      this.skipBtnEl.hidden = false;
-    }, ENTRY_GATE.SKIP_DELAY_MS);
-  },
-
-  recordClap() {
-    if (!this.isActive || this.unlocking) {
-      return;
-    }
-    const now = performance.now();
-    this.clapTimestamps.push(now);
-
-    if (this.clapZoneEl) {
-      this.clapZoneEl.classList.add("is-popping");
-      window.clearTimeout(this.popTimeoutId);
-      this.popTimeoutId = window.setTimeout(() => {
-        this.clapZoneEl?.classList.remove("is-popping");
-      }, 220);
-    }
-  },
-
-  startTicking() {
-    const tick = (now) => {
-      if (!this.isActive) {
-        return;
-      }
-      this.pruneTimestamps(now);
-      const rate = this.computeCurrentRate();
-      const meetsTarget = rate >= ENTRY_GATE.TARGET_CPS;
-
-      if (meetsTarget) {
-        if (this.onTargetSince === null) {
-          this.onTargetSince = now;
-        }
-      } else {
-        this.onTargetSince = null;
-      }
-
-      const heldMs = this.onTargetSince === null ? 0 : Math.max(0, now - this.onTargetSince);
-      const heldPercent = Math.min(100, (heldMs / ENTRY_GATE.HOLD_MS) * 100);
-
-      this.renderMeters(rate, heldPercent, meetsTarget);
-      this.updateStatus(rate, heldMs, meetsTarget);
-
-      if (heldMs >= ENTRY_GATE.HOLD_MS) {
-        this.succeed();
-        return;
-      }
-
-      this.rafId = requestAnimationFrame(tick);
-    };
-    this.rafId = requestAnimationFrame(tick);
-  },
-
-  pruneTimestamps(now) {
-    const cutoff = now - ENTRY_GATE.RATE_WINDOW_MS;
-    while (this.clapTimestamps.length && this.clapTimestamps[0] < cutoff) {
-      this.clapTimestamps.shift();
-    }
-  },
-
-  computeCurrentRate() {
-    return this.clapTimestamps.length;
-  },
-
-  renderMeters(rate, heldPercent, meetsTarget) {
-    if (this.rateValueEl) {
-      this.rateValueEl.textContent = `${rate}/ש'`;
-    }
-    if (this.rateFillEl) {
-      const ratePercent = Math.min(100, (rate / ENTRY_GATE.RATE_FILL_MAX) * 100);
-      this.rateFillEl.style.width = `${ratePercent}%`;
-      this.rateFillEl.classList.toggle("is-on-target", meetsTarget);
-    }
-    if (this.holdValueEl) {
-      this.holdValueEl.textContent = `${Math.round(heldPercent)}%`;
-    }
-    if (this.holdFillEl) {
-      this.holdFillEl.style.width = `${heldPercent}%`;
-    }
-  },
-
-  updateStatus(rate, heldMs, meetsTarget) {
-    if (!this.statusEl) {
-      return;
-    }
-    let key = "start";
-    let text = "התחילו ללחוץ ברצף 👇";
-
-    if (rate > 0 && !meetsTarget) {
-      key = "speedup";
-      text = "כמעט שם, האיצו קצת את הקצב 🤏";
-    }
-    if (meetsTarget && heldMs > 0 && heldMs < 2000) {
-      key = "good";
-      text = "קצב מעולה, תמשיכו ככה 👏";
-    }
-    if (meetsTarget && heldMs >= 2000 && heldMs < 4000) {
-      key = "great";
-      text = "אהבנו! עוד רגע נכנסים 🎯";
-    }
-    if (meetsTarget && heldMs >= 4000) {
-      key = "almost";
-      text = "כמעט פותחים... אל תפסיקו! 🔥";
-    }
-
-    if (key !== this.lastStatusKey) {
-      this.lastStatusKey = key;
-      this.statusEl.textContent = text;
-    }
+    currentUserName = name;
+    saveUserName(name);
+    this.succeed();
   },
 
   succeed() {
-    if (this.unlocking) {
-      return;
+    const successText = document.getElementById("entry-success-text");
+    if (successText) {
+      successText.textContent = `שלום ${currentUserName}! פותחים את האתר...`;
     }
-    this.unlocking = true;
-    this.isActive = false;
-    cancelAnimationFrame(this.rafId);
-
     if (this.successEl) {
       this.successEl.classList.add("is-visible");
       this.successEl.setAttribute("aria-hidden", "false");
     }
-    if (this.statusEl) {
-      this.statusEl.textContent = "כל הכבוד! פותחים את האתר ✨";
-    }
 
-    if (!this.reducedMotion) {
-      startConfettiBurst({ durationMs: 2400 });
-    }
-
-    const closeDelay = this.reducedMotion ? 600 : 1100;
-    window.setTimeout(() => this.unlock({ celebrate: false }), closeDelay);
-  },
-
-  unlock({ celebrate = false } = {}) {
-    cancelAnimationFrame(this.rafId);
-    window.clearTimeout(this.skipTimeoutId);
-    this.isActive = false;
-
-    if (celebrate && !this.reducedMotion) {
+    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+    if (!reducedMotion) {
       startConfettiBurst({ durationMs: 2200 });
     }
 
-    if (this.keydownHandler) {
-      document.removeEventListener("keydown", this.keydownHandler);
-      this.keydownHandler = null;
-    }
+    window.setTimeout(() => this.unlock(), reducedMotion ? 500 : 1000);
+  },
 
-    this.rememberPassed();
-
+  unlock() {
     if (this.overlayEl) {
       this.overlayEl.classList.add("is-leaving");
     }
@@ -1598,11 +1525,66 @@ const EntryGate = {
         this.overlayEl.classList.remove("is-leaving");
       }
     }, 460);
+
+    ensureUserBadge();
+  },
+
+  bypassImmediately() {
+    this.overlayEl?.setAttribute("hidden", "");
+    document.documentElement.classList.remove("is-entry-locked");
+    document.body.classList.remove("is-entry-locked");
+    if (this.contentEl) {
+      this.contentEl.removeAttribute("inert");
+    }
   },
 };
 
+function ensureUserBadge() {
+  const heroMeta = document.querySelector(".hero-meta");
+  if (!heroMeta) {
+    return;
+  }
+
+  let badge = document.getElementById("user-badge");
+  if (!badge) {
+    badge = document.createElement("span");
+    badge.id = "user-badge";
+    badge.className = "user-badge";
+    badge.innerHTML = `
+      מחובר/ת בתור <strong id="user-badge-name"></strong>
+      <button type="button" id="user-badge-change" class="user-badge-change">החלף שם</button>
+    `;
+    heroMeta.append(badge);
+  }
+
+  if (!currentUserName) {
+    badge.hidden = true;
+    return;
+  }
+
+  badge.hidden = false;
+  const nameEl = badge.querySelector("#user-badge-name");
+  if (nameEl) {
+    nameEl.textContent = currentUserName;
+  }
+
+  const changeBtn = badge.querySelector("#user-badge-change");
+  if (changeBtn && changeBtn.dataset.bound !== "true") {
+    changeBtn.dataset.bound = "true";
+    changeBtn.addEventListener("click", () => {
+      const shouldChange = window.confirm("להחליף את השם המזוהה במכשיר הזה?");
+      if (!shouldChange) {
+        return;
+      }
+      clearUserName();
+      window.location.reload();
+    });
+  }
+}
+
 async function init() {
-  EntryGate.start();
+  NameGate.start();
+  ensureUserBadge();
   ensureArticleKeys();
   ensureArticleProgressBars();
   ensureArticleLayout();
@@ -1615,6 +1597,7 @@ async function init() {
 
   checkboxState = normalizeCheckboxState(loadState());
   customItemsByArticle = normalizeCustomItems(loadCustomItems());
+  checkedByState = normalizeCheckedByState(loadCheckedBy());
   restoreCustomItemsFromState();
   ensureBuiltInItemRows();
   bindItemActions();
