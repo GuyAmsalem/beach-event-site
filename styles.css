@@ -595,10 +595,6 @@ h1 {
   border-radius: 999px;
 }
 
-#essential h2 {
-  text-align: right;
-}
-
 label {
   display: flex;
   align-items: center;
@@ -636,16 +632,6 @@ label:has(input[type="checkbox"]:checked) {
 input[type="checkbox"]:focus-visible {
   outline: 2px solid var(--sea);
   outline-offset: 2px;
-}
-
-.info-list {
-  margin: 0 0 1rem;
-  padding-inline-start: 1.2rem;
-  color: var(--ink-soft);
-}
-
-.info-list li + li {
-  margin-top: 0.3rem;
 }
 
 #reset-checklist {
