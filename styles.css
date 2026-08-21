@@ -101,6 +101,26 @@ h1 {
   display: none;
 }
 
+.user-badge-dot {
+  display: inline-block;
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  border-radius: 50%;
+  background: #2ecc71;
+  box-shadow: 0 0 0 3px rgb(46 204 113 / 0.22);
+  flex: 0 0 auto;
+  animation: userBadgeDotPulse 2.4s ease-in-out infinite;
+}
+
+@keyframes userBadgeDotPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 3px rgb(46 204 113 / 0.22);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgb(46 204 113 / 0);
+  }
+}
+
 .user-badge-change {
   border: none;
   background: rgb(255 255 255 / 0.24);

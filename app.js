@@ -1552,6 +1552,7 @@ function ensureUserBadge() {
     badge.id = "user-badge";
     badge.className = "user-badge";
     badge.innerHTML = `
+      <span class="user-badge-dot" aria-hidden="true"></span>
       מחובר/ת בתור <strong id="user-badge-name"></strong>
       <button type="button" id="user-badge-change" class="user-badge-change">החלף שם</button>
     `;
